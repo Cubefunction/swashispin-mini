@@ -42,8 +42,8 @@ module dc_dispatcher
     logic [FRAME_WORDS-1:0][31:0] r_frame_buf; 
     logic [3:0][31:0]            r_launch_buf;
 
-    always_ff @(posedge i_clk or negedge i_rst) begin
-        if (!i_rst) begin
+    always_ff @(posedge i_clk) begin
+        if (i_rst) begin
             r_state        <= IDLE;
             o_fifo_deq     <= 1'b0;
             r_word_cnt     <= 6'd0;

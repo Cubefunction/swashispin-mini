@@ -1,7 +1,7 @@
 `timescale 1ns / 1ps
 
 module uart_api_dc
-#(parameter DAC_WIDTH=16,
+   #(parameter DAC_WIDTH=16,
      parameter CYCLE_WIDTH=30,
      parameter DAC_CHANNEL=24,
      parameter CHANNEL_MES_WIDTH=96,
@@ -10,7 +10,7 @@ module uart_api_dc
      parameter DEPTH=10,
      parameter INSN_WIDTH=DAC_WIDTH*2+CORE_ITER_WIDTH+CYCLE_WIDTH,
      parameter TOTAL_REGS=DEPTH*3+2)
-     (input  logic i_clk, i_rst,
+    (input  logic i_clk, i_rst,
 
      input  logic i_rx,
      output logic o_tx,
@@ -18,8 +18,8 @@ module uart_api_dc
      //input  logic i_trigger,
      
      output logic [DAC_CHANNEL-1:0] o_sclk,
-     output logic [DAC_CHANNEL-1:0]o_mosi,
-     output logic [DAC_CHANNEL-1:0]o_cs_n,
+     output logic [DAC_CHANNEL-1:0] o_mosi,
+     output logic [DAC_CHANNEL-1:0] o_cs_n,
      output logic [DAC_CHANNEL-1:0] o_ldac_n);
 
     logic w_deq_rxq, w_rxq_empty;
@@ -45,7 +45,6 @@ module uart_api_dc
         .i_deq_rxq(w_deq_rxq),
         .o_rxq_data(w_rxq_data),
         .o_rxq_empty(w_rxq_empty),
-        /* verilator lint_off PINCONNECTEMPTY */
         .o_rxq_ae(),
         .o_rxq_full(),
         .o_rxq_af(),
@@ -58,35 +57,33 @@ module uart_api_dc
     );
 
     assign w_deq_rxq = !w_rxq_empty;
+
 // ================================================================
 // UART-----FIFO32 
 // ================================================================
+
     logic [1:0]  r_byte_cnt;
     logic [31:0] r_word_buf;
     logic        w_fifo32_enq;
 
-     always_ff @(posedge i_clk or negedge i_rst) begin
+    always_ff @(posedge i_clk) begin
         if (!i_rst) begin
-            r_byte_cnt   <= 'd0;
-            r_word_buf   <= 'd0;
-            w_fifo32_enq <= 1'b0;
+            r_byte_cnt <= 'd0;
+            r_word_buf <= 'd0;
         end
-        else if (!w_rxq_empty) begin
-            r_word_buf <= {r_word_buf[23:0],w_rxq_data };
-    
+        else if (w_deq_rxq) begin
+            r_word_buf <= {r_word_buf[23:0], w_rxq_data};
+
             if (r_byte_cnt == 'd3) begin
-                w_fifo32_enq <= 1'b1;   // write FIFO32
-                r_byte_cnt   <= 'd0;
+                r_byte_cnt <= 'd0;
             end
             else begin
-                w_fifo32_enq <= 1'b0;
-                r_byte_cnt   <= r_byte_cnt + 'd1;
+                r_byte_cnt <= r_byte_cnt + 'd1;
             end
         end
-        else begin
-            w_fifo32_enq <= 1'b0;  
-        end
     end
+
+    assign w_fifo32_enq = (r_byte_cnt == 'd3);
 
 // ================================================================
 // 32-bit FIFO 
@@ -143,60 +140,62 @@ module uart_api_dc
 
 
     always_ff @(posedge i_clk or negedge i_rst) begin
-    if (!i_rst) begin
-        r_dc_regs <= '0;
-    end else if (w_valid_frame) begin
-        case (w_channel_sel)
-            5'd0 :  r_dc_regs[0]  <= w_dc_regs;
-            5'd1 :  r_dc_regs[1]  <= w_dc_regs;
-            5'd2 :  r_dc_regs[2]  <= w_dc_regs;
-            5'd3 :  r_dc_regs[3]  <= w_dc_regs;
-            5'd4 :  r_dc_regs[4]  <= w_dc_regs;
-            5'd5 :  r_dc_regs[5]  <= w_dc_regs;
-            5'd6 :  r_dc_regs[6]  <= w_dc_regs;
-            5'd7 :  r_dc_regs[7]  <= w_dc_regs;
-            5'd8 :  r_dc_regs[8]  <= w_dc_regs;
-            5'd9 :  r_dc_regs[9]  <= w_dc_regs;
-            5'd10:  r_dc_regs[10] <= w_dc_regs;
-            5'd11:  r_dc_regs[11] <= w_dc_regs;
-            5'd12:  r_dc_regs[12] <= w_dc_regs;
-            5'd13:  r_dc_regs[13] <= w_dc_regs;
-            5'd14:  r_dc_regs[14] <= w_dc_regs;
-            5'd15:  r_dc_regs[15] <= w_dc_regs;
-            5'd16:  r_dc_regs[16] <= w_dc_regs;
-            5'd17:  r_dc_regs[17] <= w_dc_regs;
-            5'd18:  r_dc_regs[18] <= w_dc_regs;
-            5'd19:  r_dc_regs[19] <= w_dc_regs;
-            5'd20:  r_dc_regs[20] <= w_dc_regs;
-            5'd21:  r_dc_regs[21] <= w_dc_regs;
-            5'd22:  r_dc_regs[22] <= w_dc_regs;
-            5'd23:  r_dc_regs[23] <= w_dc_regs;
-            default: ;
-        endcase
+        if (!i_rst) begin
+            r_dc_regs <= '0;
+        end 
+        else if (w_valid_frame) begin
+            case (w_channel_sel)
+                5'd0 :  r_dc_regs[0]  <= w_dc_regs;
+                5'd1 :  r_dc_regs[1]  <= w_dc_regs;
+                5'd2 :  r_dc_regs[2]  <= w_dc_regs;
+                5'd3 :  r_dc_regs[3]  <= w_dc_regs;
+                5'd4 :  r_dc_regs[4]  <= w_dc_regs;
+                5'd5 :  r_dc_regs[5]  <= w_dc_regs;
+                5'd6 :  r_dc_regs[6]  <= w_dc_regs;
+                5'd7 :  r_dc_regs[7]  <= w_dc_regs;
+                5'd8 :  r_dc_regs[8]  <= w_dc_regs;
+                5'd9 :  r_dc_regs[9]  <= w_dc_regs;
+                5'd10:  r_dc_regs[10] <= w_dc_regs;
+                5'd11:  r_dc_regs[11] <= w_dc_regs;
+                5'd12:  r_dc_regs[12] <= w_dc_regs;
+                5'd13:  r_dc_regs[13] <= w_dc_regs;
+                5'd14:  r_dc_regs[14] <= w_dc_regs;
+                5'd15:  r_dc_regs[15] <= w_dc_regs;
+                5'd16:  r_dc_regs[16] <= w_dc_regs;
+                5'd17:  r_dc_regs[17] <= w_dc_regs;
+                5'd18:  r_dc_regs[18] <= w_dc_regs;
+                5'd19:  r_dc_regs[19] <= w_dc_regs;
+                5'd20:  r_dc_regs[20] <= w_dc_regs;
+                5'd21:  r_dc_regs[21] <= w_dc_regs;
+                5'd22:  r_dc_regs[22] <= w_dc_regs;
+                5'd23:  r_dc_regs[23] <= w_dc_regs;
+                default: ;
+            endcase
+        end
     end
-end
-   genvar i;
-   generate
-       for (i = 0; i < DAC_CHANNEL; i++) begin : GEN_DC
-           dc #(
-               .DAC_WIDTH(DAC_WIDTH),
-               .CYCLE_WIDTH(CYCLE_WIDTH),
-               .STREAM_ITER_WIDTH(STREAM_ITER_WIDTH),
-               .CORE_ITER_WIDTH(CORE_ITER_WIDTH),
-               .DEPTH(DEPTH)
-           ) u_dc (
-               .i_clk(i_clk),
-               .i_rst(i_rst),
-               .i_regs(r_dc_regs[i]),
-               .i_start(r_start[i]),
-               .o_armed(w_armed[i]),
-               .o_sclk(o_sclk[i]),
-               .o_mosi(o_mosi[i]),
-               .o_cs_n(o_cs_n[i]),
-               .o_ldac_n(o_ldac_n[i])
-           );
-       end
-   endgenerate
+
+    genvar i;
+    generate
+        for (i = 0; i < DAC_CHANNEL; i++) begin : GEN_DC
+            dc #(
+                .DAC_WIDTH(DAC_WIDTH),
+                .CYCLE_WIDTH(CYCLE_WIDTH),
+                .STREAM_ITER_WIDTH(STREAM_ITER_WIDTH),
+                .CORE_ITER_WIDTH(CORE_ITER_WIDTH),
+                .DEPTH(DEPTH)
+                ) u_dc (
+                .i_clk(i_clk),
+                .i_rst(i_rst),
+                .i_regs(r_dc_regs[i]),
+                .i_start(r_start[i]),
+                .o_armed(w_armed[i]),
+                .o_sclk(o_sclk[i]),
+                .o_mosi(o_mosi[i]),
+                .o_cs_n(o_cs_n[i]),
+                .o_ldac_n(o_ldac_n[i])
+            );
+        end
+    endgenerate
 
     
    launch #(

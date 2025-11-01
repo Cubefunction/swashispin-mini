@@ -2,7 +2,7 @@
 
 module uart_api_dc_tb;
 
-    localparam FRAME_WORDS = 62;
+    localparam FRAME_WORDS = 32;
     localparam UART_BAUD   = 115200;
     localparam real BIT_DUR = 1e9 / UART_BAUD;
     localparam CLK_PERIOD  = 10;
