@@ -2,8 +2,18 @@
 
 module uart_api_dc_tb;
 
-    localparam FRAME_WORDS = 32;
-    localparam UART_BAUD   = 115200;
+    localparam DAC_WIDTH=16;
+    localparam CYCLE_WIDTH=30;
+    localparam STREAM_ITER_WIDTH=10;
+    localparam CORE_ITER_WIDTH=10;
+    localparam STREAM_DEPTH=2;
+    localparam INSN_WIDTH=DAC_WIDTH*2+CORE_ITER_WIDTH+CYCLE_WIDTH;
+    localparam CHANNEL_MES_WIDTH=96;
+    localparam TOTAL_REGS=STREAM_DEPTH*3+2;
+
+    localparam NUM_CHANNEL = 4;
+
+    localparam UART_BAUD   = 921600;
     localparam real BIT_DUR = 1e9 / UART_BAUD;
     localparam CLK_PERIOD  = 10;
 
@@ -11,20 +21,38 @@ module uart_api_dc_tb;
     // DUT
     // =======================================
     logic w_clk, w_rst;
-    logic w_rx, w_tx;
-    logic w_sclk, w_mosi, w_ldac_n;
-    logic [23:0] w_cs_n;
+    logic w_rx;
+    logic [NUM_CHANNEL-1:0] w_sclk_bus, w_mosi_bus, w_ldac_n_bus, w_cs_n_bus;
 
-    uart_api_dc dut (
+    uart_api_dc #(
+        .DAC_WIDTH(DAC_WIDTH),
+        .CYCLE_WIDTH(CYCLE_WIDTH),
+        .DAC_CHANNEL(NUM_CHANNEL),
+        .CHANNEL_MES_WIDTH(CHANNEL_MES_WIDTH),
+        .STREAM_ITER_WIDTH(STREAM_ITER_WIDTH),
+        .CORE_ITER_WIDTH(CORE_ITER_WIDTH),
+        .DEPTH(STREAM_DEPTH)
+    ) dut (
         .i_clk    (w_clk),
         .i_rst    (w_rst),
         .i_rx     (w_rx),
-        .o_tx     (w_tx),
-        .o_sclk   (w_sclk),
-        .o_mosi   (w_mosi),
-        .o_cs_n   (w_cs_n),
-        .o_ldac_n (w_ldac_n)
+        .o_sclk   (w_sclk_bus),
+        .o_mosi   (w_mosi_bus),
+        .o_cs_n   (w_cs_n_bus),
+        .o_ldac_n (w_ldac_n_bus)
     );
+
+    logic [23:0][15:0] vdc;
+
+    for (genvar i = 0; i < NUM_CHANNEL; i++) begin : DC_DAC_GEN
+        ad4451a DC_DAC (
+            .i_sclk(w_sclk_bus[i]),
+            .i_mosi(w_mosi_bus[i]),
+            .i_cs_n(w_cs_n_bus[i]),
+            .i_ldac_n(w_ldac_n_bus[i]),
+            .o_vdc(vdc[i])
+        );
+    end
 
     // =======================================
     // Clock generation
@@ -38,6 +66,9 @@ module uart_api_dc_tb;
     // UART byte transmit task
     // =======================================
     task automatic pc_tsmt (input logic [7:0] data);
+        $display("data: %b", data);
+        assert (data !== 8'bxxxxxxxx)
+        else $fatal(1, "all x");
         w_rx = 1'b0; #(BIT_DUR);      // start bit
         for (int i = 0; i < 8; i++) begin
             w_rx = data[i];
@@ -49,97 +80,100 @@ module uart_api_dc_tb;
     // =======================================
     // Single-channel fixed data (channel 0 only)
     // =======================================
-    logic [31:0] frame_data [0:FRAME_WORDS-1];
+    logic [31:0] dc_regs_unpacked [0:NUM_CHANNEL-1][0:TOTAL_REGS-1];
+    logic [31:0] launch_regs_unpacked [0:3];
+    logic [NUM_CHANNEL-1:0] w_dc_empty_bus;
+    logic [NUM_CHANNEL-1:0] w_dc_idle_bus;
 
-    initial begin
-        // Header (bit 31 == 0 for channel 0)
-        frame_data[0] = 32'h7FFFFFFF;
-
-        // 61 payload words (固定内容)
-        frame_data[1]  = 32'h12345678;
-        frame_data[2]  = 32'h9ABCDEF0;
-        frame_data[3]  = 32'h00010002;
-        frame_data[4]  = 32'h00030004;
-        frame_data[5]  = 32'h00050006;
-        frame_data[6]  = 32'h00070008;
-        frame_data[7]  = 32'h0009000A;
-        frame_data[8]  = 32'h000B000C;
-        frame_data[9]  = 32'h000D000E;
-        frame_data[10] = 32'h000F0010;
-        frame_data[11] = 32'h00110012;
-        frame_data[12] = 32'h00130014;
-        frame_data[13] = 32'h00150016;
-        frame_data[14] = 32'h00170018;
-        frame_data[15] = 32'h0019001A;
-        frame_data[16] = 32'h001B001C;
-        frame_data[17] = 32'h001D001E;
-        frame_data[18] = 32'h001F0020;
-        frame_data[19] = 32'h00210022;
-        frame_data[20] = 32'h00230024;
-        frame_data[21] = 32'h00250026;
-        frame_data[22] = 32'h00270028;
-        frame_data[23] = 32'h0029002A;
-        frame_data[24] = 32'h002B002C;
-        frame_data[25] = 32'h002D002E;
-        frame_data[26] = 32'h002F0030;
-        frame_data[27] = 32'h00310032;
-        frame_data[28] = 32'h00330034;
-        frame_data[29] = 32'h00350036;
-        frame_data[30] = 32'h00370038;
-        frame_data[31] = 32'h0039003A;
-        frame_data[32] = 32'h003B003C;
-        frame_data[33] = 32'h003D003E;
-        frame_data[34] = 32'h003F0040;
-        frame_data[35] = 32'h00410042;
-        frame_data[36] = 32'h00430044;
-        frame_data[37] = 32'h00450046;
-        frame_data[38] = 32'h00470048;
-        frame_data[39] = 32'h0049004A;
-        frame_data[40] = 32'h004B004C;
-        frame_data[41] = 32'h004D004E;
-        frame_data[42] = 32'h004F0050;
-        frame_data[43] = 32'h00510052;
-        frame_data[44] = 32'h00530054;
-        frame_data[45] = 32'h00550056;
-        frame_data[46] = 32'h00570058;
-        frame_data[47] = 32'h0059005A;
-        frame_data[48] = 32'h005B005C;
-        frame_data[49] = 32'h005D005E;
-        frame_data[50] = 32'h005F0060;
-        frame_data[51] = 32'h00610062;
-        frame_data[52] = 32'h00630064;
-        frame_data[53] = 32'h00650066;
-        frame_data[54] = 32'h00670068;
-        frame_data[55] = 32'h0069006A;
-        frame_data[56] = 32'h006B006C;
-        frame_data[57] = 32'h006D006E;
-        frame_data[58] = 32'h006F0070;
-        frame_data[59] = 32'h00710072;
-        frame_data[60] = 32'h00730074;
-        frame_data[61] = 32'h00750076;
+    for (genvar i = 0; i < NUM_CHANNEL; i++) begin : GEN_EMPTY_IDLE
+        assign w_dc_empty_bus[i] = dut.GEN_DC[i].u_dc.w_empty;
+        assign w_dc_idle_bus[i] = dut.GEN_DC[i].u_dc.core.r_state == dut.GEN_DC[i].u_dc.core.IDLE;
     end
 
-    // =======================================
-    // Main stimulus: send channel-0 frame only
-    // =======================================
+    logic dc_empty, dc_idle;
+    assign dc_empty = w_dc_empty_bus == {(NUM_CHANNEL){1'b1}};
+    assign dc_idle = w_dc_idle_bus == {(NUM_CHANNEL){1'b1}};
+
+    string path;
+    logic [31:0] header;
+
     initial begin
-        w_rst = 1'b0;
-        w_rx  = 1'b1;
-        repeat(20) @(negedge w_clk);
+        for (int i = 0; i < NUM_CHANNEL; i++)
+            for (int j = 0; j < TOTAL_REGS; j++)
+                dc_regs_unpacked[i][j] = 'h0;
+
+        for (int i = 0; i <= 3; i++)
+            launch_regs_unpacked[i] = 'h0;
+
         w_rst = 1'b1;
+        @(negedge w_clk);
+        w_rst = 1'b0;
 
-        $display("---- Sending fixed frame for Channel 0 ----");
+        repeat(5) @(negedge w_clk);
 
-        for (int i = 0; i < FRAME_WORDS; i++) begin
-            pc_tsmt(frame_data[i][31:24]);
-            pc_tsmt(frame_data[i][23:16]);
-            pc_tsmt(frame_data[i][15:8]);
-            pc_tsmt(frame_data[i][7:0]);
+        $readmemb("../sw/dump/launch.txt", launch_regs_unpacked);
+
+        // transmit activated dc channels
+        for (int i = 0; i < NUM_CHANNEL; i++) begin
+
+            if (launch_regs_unpacked[0][i]) begin
+
+                $display("i: %0d, NUM_CHANNEL: %0d", i, NUM_CHANNEL);
+
+                path = $sformatf("../sw/dump/dc%0d.txt", i);
+                $readmemb(path, dc_regs_unpacked[i]);
+
+                header = 32'hffff_ffff ^ (32'b1 << (i + 8));
+                $display("transmit byte 3 of header");
+                pc_tsmt(header[31:24]);
+                $display("transmit byte 2 of header");
+                pc_tsmt(header[23:16]);
+                $display("transmit byte 1 of header");
+                pc_tsmt(header[15:8]);
+                $display("transmit byte 0 of header");
+                pc_tsmt(header[7:0]);
+
+                for (int j = 0; j < TOTAL_REGS; j++) begin
+                    $display("i: %0d, j: %0d, NUM_CHANNEL: %0d, TOTAL_REGS: %0d", i, j, NUM_CHANNEL, TOTAL_REGS);
+                    $display("transmit byte 3 of dc_regs_unpacked[%0d][%0d]", i, j);
+                    pc_tsmt(dc_regs_unpacked[i][j][31:24]);
+                    $display("transmit byte 2 of dc_regs_unpacked[%0d][%0d]", i, j);
+                    pc_tsmt(dc_regs_unpacked[i][j][23:16]);
+                    $display("transmit byte 1 of dc_regs_unpacked[%0d][%0d]", i, j);
+                    pc_tsmt(dc_regs_unpacked[i][j][15:8]);
+                    $display("transmit byte 0 of dc_regs_unpacked[%0d][%0d]", i, j);
+                    pc_tsmt(dc_regs_unpacked[i][j][7:0]);
+                end
+
+            end
         end
 
-        #(BIT_DUR * 200);
-        $display("Channel 0 frame transmitted successfully.");
+        // transmit launch
+        $display("transmit launch");
+        header = 32'hffff_ffff;
+        pc_tsmt(header[31:24]);
+        pc_tsmt(header[23:16]);
+        pc_tsmt(header[15:8]);
+        pc_tsmt(header[7:0]);
+
+        for (int i = 0; i < 4; i++) begin
+            $display("transmit byte 3 of launch_regs_unpacked[%0d]", i);
+            pc_tsmt(launch_regs_unpacked[i][31:24]);
+            $display("transmit byte 2 of launch_regs_unpacked[%0d]", i);
+            pc_tsmt(launch_regs_unpacked[i][23:16]);
+            $display("transmit byte 1 of launch_regs_unpacked[%0d]", i);
+            pc_tsmt(launch_regs_unpacked[i][15:8]);
+            $display("transmit byte 0 of launch_regs_unpacked[%0d]", i);
+            pc_tsmt(launch_regs_unpacked[i][7:0]);
+        end
+
+        wait(dut.u_launch.r_state == dut.u_launch.LAUNCH);
+        @(negedge w_clk);
+        wait(dut.u_launch.w_all_ready);
+        wait(dc_empty && dc_idle);
+
         $finish;
+
     end
 
 endmodule

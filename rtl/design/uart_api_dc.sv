@@ -13,7 +13,6 @@ module uart_api_dc
     (input  logic i_clk, i_rst,
 
      input  logic i_rx,
-     output logic o_tx,
 
      //input  logic i_trigger,
      
@@ -26,8 +25,7 @@ module uart_api_dc
     logic [7:0] w_rxq_data;
     
     localparam NUM_BYTES = INSN_WIDTH / 8;
-    localparam FRAME_BYTES = 62 * 4; 
-    localparam FRAME_WORDS = 62;
+    localparam FRAME_BYTES = TOTAL_REGS * 4; 
     
     uart #(
         .DATA_WIDTH(8),
@@ -39,9 +37,9 @@ module uart_api_dc
         .TX_FIFO_AE_DEPTH(4)
     ) U (
         .i_clk(i_clk),
-        .i_rst(!i_rst),
+        .i_rst(i_rst),
         .i_rx(i_rx),
-        .o_tx(o_tx),
+        .o_tx(),
         .i_deq_rxq(w_deq_rxq),
         .o_rxq_data(w_rxq_data),
         .o_rxq_empty(w_rxq_empty),
@@ -64,10 +62,10 @@ module uart_api_dc
 
     logic [1:0]  r_byte_cnt;
     logic [31:0] r_word_buf;
-    logic        w_fifo32_enq;
+    logic        r_fifo32_enq;
 
     always_ff @(posedge i_clk) begin
-        if (!i_rst) begin
+        if (i_rst) begin
             r_byte_cnt <= 'd0;
             r_word_buf <= 'd0;
         end
@@ -76,14 +74,16 @@ module uart_api_dc
 
             if (r_byte_cnt == 'd3) begin
                 r_byte_cnt <= 'd0;
+                r_fifo32_enq <= 1'b1;
             end
             else begin
                 r_byte_cnt <= r_byte_cnt + 'd1;
             end
         end
+        else begin
+            r_fifo32_enq <= 1'b0;
+        end
     end
-
-    assign w_fifo32_enq = (r_byte_cnt == 'd3);
 
 // ================================================================
 // 32-bit FIFO 
@@ -100,9 +100,9 @@ module uart_api_dc
         .AE_DEPTH(8)
     ) u_fifo32 (
         .i_clk(i_clk),
-        .i_rst(!i_rst),
+        .i_rst(i_rst),
         .i_data(r_word_buf),
-        .i_enq(w_fifo32_enq),
+        .i_enq(r_fifo32_enq),
         .i_deq(w_fifo32_deq),   
         .o_data(w_fifo32_dout),
         .o_full(w_fifo32_full),
@@ -111,8 +111,14 @@ module uart_api_dc
         .o_almost_empty()
     );
 // ================================================================
-// 62*32 register from fifo
+// 32*32 register from fifo
 // ================================================================
+
+    logic [TOTAL_REGS-1:0][31:0]   w_dc_regs;       
+    logic [4:0]          w_channel_sel;   
+    logic                w_valid_frame; 
+    logic [3:0][31:0]    w_launch_cmd_reg;
+    logic                w_launch_valid;
 
     dc_dispatcher #(
         .DAC_CHANNEL(DAC_CHANNEL),
@@ -126,51 +132,49 @@ module uart_api_dc
         .o_dc_regs(w_dc_regs),
         .o_channel_sel(w_channel_sel),
         .o_valid_frame(w_valid_frame),
-        .o_launch_cmd(w_launch_cmd_reg)
+        .o_launch_cmd(w_launch_cmd_reg),
+        .o_launch_valid(w_launch_valid)
     );
 
-    logic [61:0][31:0]   w_dc_regs;       
-    logic [4:0]          w_channel_sel;   
-    logic                w_valid_frame; 
-    logic [3:0][31:0]    w_launch_cmd_reg;
-
-    logic [DAC_CHANNEL-1:0][61:0][31:0] r_dc_regs;  
-    logic [DAC_CHANNEL-1:0]             r_start;     
+    logic [DAC_CHANNEL-1:0]             r_dc_valid_flags;  
+    logic [DAC_CHANNEL-1:0]             w_start;     
     logic [DAC_CHANNEL-1:0]             w_armed;     
 
-
-    always_ff @(posedge i_clk or negedge i_rst) begin
-        if (!i_rst) begin
-            r_dc_regs <= '0;
+    always_ff @(posedge i_clk) begin
+        if (i_rst) begin
+            r_dc_valid_flags <= 'h0;
         end 
         else if (w_valid_frame) begin
             case (w_channel_sel)
-                5'd0 :  r_dc_regs[0]  <= w_dc_regs;
-                5'd1 :  r_dc_regs[1]  <= w_dc_regs;
-                5'd2 :  r_dc_regs[2]  <= w_dc_regs;
-                5'd3 :  r_dc_regs[3]  <= w_dc_regs;
-                5'd4 :  r_dc_regs[4]  <= w_dc_regs;
-                5'd5 :  r_dc_regs[5]  <= w_dc_regs;
-                5'd6 :  r_dc_regs[6]  <= w_dc_regs;
-                5'd7 :  r_dc_regs[7]  <= w_dc_regs;
-                5'd8 :  r_dc_regs[8]  <= w_dc_regs;
-                5'd9 :  r_dc_regs[9]  <= w_dc_regs;
-                5'd10:  r_dc_regs[10] <= w_dc_regs;
-                5'd11:  r_dc_regs[11] <= w_dc_regs;
-                5'd12:  r_dc_regs[12] <= w_dc_regs;
-                5'd13:  r_dc_regs[13] <= w_dc_regs;
-                5'd14:  r_dc_regs[14] <= w_dc_regs;
-                5'd15:  r_dc_regs[15] <= w_dc_regs;
-                5'd16:  r_dc_regs[16] <= w_dc_regs;
-                5'd17:  r_dc_regs[17] <= w_dc_regs;
-                5'd18:  r_dc_regs[18] <= w_dc_regs;
-                5'd19:  r_dc_regs[19] <= w_dc_regs;
-                5'd20:  r_dc_regs[20] <= w_dc_regs;
-                5'd21:  r_dc_regs[21] <= w_dc_regs;
-                5'd22:  r_dc_regs[22] <= w_dc_regs;
-                5'd23:  r_dc_regs[23] <= w_dc_regs;
+                5'd0 :  r_dc_valid_flags[0]  <= 1'b1;
+                5'd1 :  r_dc_valid_flags[1]  <= 1'b1;
+                5'd2 :  r_dc_valid_flags[2]  <= 1'b1;
+                5'd3 :  r_dc_valid_flags[3]  <= 1'b1;
+                // 5'd4 :  r_dc_valid_flags[4]  <= 1'b1;
+                // 5'd5 :  r_dc_valid_flags[5]  <= 1'b1;
+                // 5'd6 :  r_dc_valid_flags[6]  <= 1'b1;
+                // 5'd7 :  r_dc_valid_flags[7]  <= 1'b1;
+                // 5'd8 :  r_dc_valid_flags[8]  <= 1'b1;
+                // 5'd9 :  r_dc_valid_flags[9]  <= 1'b1;
+                // 5'd10:  r_dc_valid_flags[10] <= 1'b1;
+                // 5'd11:  r_dc_valid_flags[11] <= 1'b1;
+                // 5'd12:  r_dc_valid_flags[12] <= 1'b1;
+                // 5'd13:  r_dc_valid_flags[13] <= 1'b1;
+                // 5'd14:  r_dc_valid_flags[14] <= 1'b1;
+                // 5'd15:  r_dc_valid_flags[15] <= 1'b1;
+                // 5'd16:  r_dc_valid_flags[16] <= 1'b1;
+                // 5'd17:  r_dc_valid_flags[17] <= 1'b1;
+                // 5'd18:  r_dc_valid_flags[18] <= 1'b1;
+                // 5'd19:  r_dc_valid_flags[19] <= 1'b1;
+                // 5'd20:  r_dc_valid_flags[20] <= 1'b1;
+                // 5'd21:  r_dc_valid_flags[21] <= 1'b1;
+                // 5'd22:  r_dc_valid_flags[22] <= 1'b1;
+                // 5'd23:  r_dc_valid_flags[23] <= 1'b1;
                 default: ;
             endcase
+        end
+        else if (r_dc_valid_flags != 'h0) begin
+            r_dc_valid_flags <= 'h0;
         end
     end
 
@@ -186,8 +190,8 @@ module uart_api_dc
                 ) u_dc (
                 .i_clk(i_clk),
                 .i_rst(i_rst),
-                .i_regs(r_dc_regs[i]),
-                .i_start(r_start[i]),
+                .i_regs({31'h0, r_dc_valid_flags[i], w_dc_regs[TOTAL_REGS-2:0]}),
+                .i_start(w_start[i]),
                 .o_armed(w_armed[i]),
                 .o_sclk(o_sclk[i]),
                 .o_mosi(o_mosi[i]),
@@ -197,26 +201,25 @@ module uart_api_dc
         end
     endgenerate
 
-    
-   launch #(
-    .NUM_DC_CHANNEL(24),
+    launch #(
+    .NUM_DC_CHANNEL(DAC_CHANNEL),
     .NUM_RF_CHANNEL(7),
     .NUM_LI_CHANNEL(2)
-    )u_launch(
+    ) u_launch (
        .i_clk(i_clk), 
        .i_rst(i_rst),
 
-       .i_regs(w_launch_cmd_reg),
+       .i_regs({31'h0, w_launch_valid, w_launch_cmd_reg[2:0]}),
 
        .i_dc_armed(w_armed),
-       //.i_rf_armed(),
-       //.i_li_armed(),
+       .i_rf_armed(7'h0),
+       .i_li_armed(2'h0),
 
-       .o_dc_start(r_start)
-       //.o_rf_start(),
-       //.o_li_start()
-       );
-
+       .o_dc_start(w_start),
+       .o_rf_start(),
+       .o_li_start(),
+       .i_trigger(1'b1)
+    );
 
 
 endmodule
