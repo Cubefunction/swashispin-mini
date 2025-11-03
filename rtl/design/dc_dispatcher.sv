@@ -87,7 +87,7 @@ module dc_dispatcher
             
             READ_PAYLOAD: begin
                 if (!i_fifo_empty) begin
-                    o_fifo_deq <= 1'b1;
+                    //o_fifo_deq <= 1'b1;
                     r_frame_buf[r_word_cnt] <= i_fifo_data;
                     r_word_cnt <= r_word_cnt + 1;
 
@@ -102,7 +102,7 @@ module dc_dispatcher
             // ====================================================
             READ_LAUNCH_CMD: begin
                 if (!i_fifo_empty) begin
-                    o_fifo_deq <= 1'b1;
+                    //o_fifo_deq <= 1'b1;
                     r_launch_buf[r_word_cnt] <= i_fifo_data;
                     r_word_cnt <= r_word_cnt + 1;
 
