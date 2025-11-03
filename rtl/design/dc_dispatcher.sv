@@ -42,10 +42,11 @@ module dc_dispatcher
     logic [FRAME_WORDS-1:0][31:0] r_frame_buf; 
     logic [3:0][31:0]            r_launch_buf;
 
+
     assign o_fifo_deq = !i_fifo_empty;
 
-    always_ff @(posedge i_clk or negedge i_rst) begin
-        if (!i_rst) begin
+    always_ff @(posedge i_clk) begin
+        if (i_rst) begin
             r_state        <= IDLE;
             //o_fifo_deq     <= 1'b0;
             r_word_cnt     <= 6'd0;
@@ -57,30 +58,29 @@ module dc_dispatcher
             o_valid_frame <= 1'b0;
 
             case (r_state)
-            IDLE: begin
-                if (!i_fifo_empty) begin
-                    //o_fifo_deq <= 1'b1;   // first word
-                    r_state    <= READ_HDR;
-                end
-            end
 
             // ====================================================
-            READ_HDR: begin
-                // first word
+            IDLE: begin
                 if (i_fifo_data == 32'hFFFF_FFFF) begin
                     r_word_cnt <= 0;
                     r_state    <= READ_LAUNCH_CMD;
                 end
                 else begin
-                    r_frame_buf[0] <= i_fifo_data;
-                    for (int j = 0; j < DAC_CHANNEL; j++) begin
-                        if (i_fifo_data[8+j] == 1'b0)
-                            r_channel_sel <= j[4:0];
+                    logic [23:0] hdr_bits;
+                    hdr_bits = i_fifo_data[31:8];
+                    if ($countones(~hdr_bits) == 1) begin
+                        for (int j = 0; j < DAC_CHANNEL; j++) begin
+                            if (hdr_bits[j] == 1'b0)
+                                r_channel_sel <= j[4:0];
+                        end
+                        r_frame_buf[0] <= i_fifo_data;
+                        r_word_cnt <= 6'd1;
+                        r_state    <= READ_PAYLOAD;
                     end
-                    r_word_cnt <= 6'd1;
-                    r_state    <= READ_PAYLOAD;
+                    else begin
+                        r_state <= IDLE;
+                    end
                 end
-                
             end
 
             // =========================61===========================
