@@ -23,12 +23,12 @@ module dc_dispatcher
     output logic                         o_launch_valid    
     );
 
-    typedef enum logic [1:0] {
-        IDLE        = 2'b00,
-        READ_HDR    = 2'b01,
-        READ_PAYLOAD= 2'b10,
-        READ_LAUNCH_CMD = 2'b11
-    } state_t;
+    enum{
+        IDLE        ,
+        READ_HDR    ,
+        READ_PAYLOAD,
+        READ_LAUNCH_CMD
+    } r_state;
 
 //    state_t r_state;
 //    parameter IDLE            = 2'b00;
@@ -42,22 +42,24 @@ module dc_dispatcher
     logic [FRAME_WORDS-1:0][31:0] r_frame_buf; 
     logic [3:0][31:0]            r_launch_buf;
 
+    assign o_fifo_deq = !i_fifo_empty;
+
     always_ff @(posedge i_clk or negedge i_rst) begin
         if (!i_rst) begin
             r_state        <= IDLE;
-            o_fifo_deq     <= 1'b0;
+            //o_fifo_deq     <= 1'b0;
             r_word_cnt     <= 6'd0;
             r_channel_sel  <= 5'd0;
             o_valid_frame  <= 1'b0;
             r_frame_buf    <= '0;
         end else begin
-            o_fifo_deq    <= 1'b0;
+            //o_fifo_deq    <= 1'b0;
             o_valid_frame <= 1'b0;
 
             case (r_state)
             IDLE: begin
                 if (!i_fifo_empty) begin
-                    o_fifo_deq <= 1'b1;   // first word
+                    //o_fifo_deq <= 1'b1;   // first word
                     r_state    <= READ_HDR;
                 end
             end
