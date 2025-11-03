@@ -15,7 +15,7 @@ module dc_dispatcher
     output logic        o_fifo_deq,    
 
 
-    output logic [FRAME_WORDS-1:0][31:0] o_dc_regs,    
+    output logic [FRAME_WORDS:0][31:0] o_dc_regs,    
     output logic [4:0]                   o_channel_sel, 
     output logic                         o_valid_frame,
     // -------------------- launch interface --------------------
@@ -39,7 +39,7 @@ module dc_dispatcher
     logic [1:0]  r_state;
     logic [5:0]  r_word_cnt;       // word (0~61)
     logic [4:0]  r_channel_sel;    
-    logic [FRAME_WORDS-1:0][31:0] r_frame_buf; 
+    logic [FRAME_WORDS:0][31:0] r_frame_buf; 
     logic [3:0][31:0]            r_launch_buf;
 
 
@@ -91,7 +91,7 @@ module dc_dispatcher
                     r_frame_buf[r_word_cnt] <= i_fifo_data;
                     r_word_cnt <= r_word_cnt + 1;
 
-                    if (r_word_cnt == FRAME_WORDS-1) begin
+                    if (r_word_cnt == FRAME_WORDS) begin
                         r_state       <= IDLE;
                         r_word_cnt    <= 6'd0;
                         o_valid_frame <= 1'b1;  
