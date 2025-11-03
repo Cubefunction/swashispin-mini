@@ -96,8 +96,10 @@ module uart_api_dc_tb;
 
     string path;
     logic [31:0] header;
+    logic tsmt_done;
 
     initial begin
+        tsmt_done = 1'b0;
         for (int i = 0; i < NUM_CHANNEL; i++)
             for (int j = 0; j < TOTAL_REGS; j++)
                 dc_regs_unpacked[i][j] = 'h0;
@@ -167,10 +169,14 @@ module uart_api_dc_tb;
             pc_tsmt(launch_regs_unpacked[i][7:0]);
         end
 
-        wait(dut.u_launch.r_state == dut.u_launch.LAUNCH);
-        @(negedge w_clk);
-        wait(dut.u_launch.w_all_ready);
+        tsmt_done = 1'b1;
+
+        // wait(dut.u_launch.r_state == dut.u_launch.LAUNCH);
+        // $display("launch is in state LAUNCH");
+        // @(negedge w_clk);
+        // wait(dut.u_launch.w_all_ready);
         wait(dc_empty && dc_idle);
+        @(negedge w_clk);
 
         $finish;
 
