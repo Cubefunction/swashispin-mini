@@ -42,7 +42,7 @@ module uart_api_dc_tb;
         .o_ldac_n (w_ldac_n_bus)
     );
 
-    logic [23:0][15:0] vdc;
+    logic [NUM_CHANNEL-1:0][DAC_WIDTH-1:0] vdc;
 
     for (genvar i = 0; i < NUM_CHANNEL; i++) begin : DC_DAC_GEN
         ad4451a DC_DAC (

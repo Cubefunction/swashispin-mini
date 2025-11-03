@@ -15,7 +15,7 @@ module dc_dispatcher
     output logic        o_fifo_deq,    
 
 
-    output logic [FRAME_WORDS:0][31:0] o_dc_regs,    
+    output logic [FRAME_WORDS-1:0][31:0] o_dc_regs,    
     output logic [4:0]                   o_channel_sel, 
     output logic                         o_valid_frame,
     // -------------------- launch interface --------------------
@@ -36,7 +36,6 @@ module dc_dispatcher
 //    parameter READ_PAYLOAD    = 2'b10;
 //    parameter READ_LAUNCH_CMD = 2'b11;
 
-    logic [1:0]  r_state;
     logic [5:0]  r_word_cnt;       // word (0~61)
     logic [4:0]  r_channel_sel;    
     logic [FRAME_WORDS:0][31:0] r_frame_buf; 
@@ -53,6 +52,8 @@ module dc_dispatcher
             r_channel_sel  <= 5'd0;
             o_valid_frame  <= 1'b0;
             r_frame_buf    <= '0;
+            r_launch_buf   <= 'h0;
+            o_launch_valid <= 1'b0;
         end else begin
             //o_fifo_deq    <= 1'b0;
             o_valid_frame <= 1'b0;
@@ -119,7 +120,7 @@ module dc_dispatcher
     end
 
     assign o_channel_sel = r_channel_sel;
-    assign o_dc_regs     = r_frame_buf;
+    assign o_dc_regs     = r_frame_buf[FRAME_WORDS:1];
     assign o_launch_cmd  = r_launch_buf;
 
 endmodule
