@@ -120,7 +120,7 @@ module dc_dispatcher
     end
 
     assign o_channel_sel = r_channel_sel;
-    assign o_dc_regs     = r_frame_buf[FRAME_WORDS:1];
+    assign o_dc_regs     = r_frame_buf[FRAME_WORDS-1:1];
     assign o_launch_cmd  = r_launch_buf;
 
 endmodule
