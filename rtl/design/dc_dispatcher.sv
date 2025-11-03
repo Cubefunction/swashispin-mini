@@ -3,7 +3,7 @@
 module dc_dispatcher 
 #(
     parameter integer DAC_CHANNEL = 24,  
-    parameter integer FRAME_WORDS = 32)   
+    parameter integer FRAME_WORDS = 62)   
 
 (
     input  logic        i_clk,
@@ -23,12 +23,12 @@ module dc_dispatcher
     output logic                         o_launch_valid    
     );
 
-    enum {
-        IDLE,
-        READ_HDR,
-        READ_PAYLOAD,
-        READ_LAUNCH_CMD
-    } r_state;
+    typedef enum logic [1:0] {
+        IDLE        = 2'b00,
+        READ_HDR    = 2'b01,
+        READ_PAYLOAD= 2'b10,
+        READ_LAUNCH_CMD = 2'b11
+    } state_t;
 
 //    state_t r_state;
 //    parameter IDLE            = 2'b00;
@@ -42,8 +42,8 @@ module dc_dispatcher
     logic [FRAME_WORDS-1:0][31:0] r_frame_buf; 
     logic [3:0][31:0]            r_launch_buf;
 
-    always_ff @(posedge i_clk) begin
-        if (i_rst) begin
+    always_ff @(posedge i_clk or negedge i_rst) begin
+        if (!i_rst) begin
             r_state        <= IDLE;
             o_fifo_deq     <= 1'b0;
             r_word_cnt     <= 6'd0;
@@ -53,7 +53,6 @@ module dc_dispatcher
         end else begin
             o_fifo_deq    <= 1'b0;
             o_valid_frame <= 1'b0;
-            // o_launch_frame <= 1'b0;
 
             case (r_state)
             IDLE: begin
