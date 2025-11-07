@@ -13,7 +13,7 @@
 
 #define VMAX 10.0
 #define VMIN -10.0
-#define NS_PER_CYCLE 4
+#define NS_PER_CYCLE 10
 
 typedef struct {
     uint32_t dv;

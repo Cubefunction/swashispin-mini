@@ -113,70 +113,69 @@ module uart_api_dc_tb;
 
         repeat(5) @(negedge w_clk);
 
-        $readmemb("../sw/dump/launch.txt", launch_regs_unpacked);
+        repeat (10) begin
 
-        // transmit activated dc channels
-        for (int i = 0; i < NUM_CHANNEL; i++) begin
+            $readmemb("../sw/dump/launch.txt", launch_regs_unpacked);
 
-            if (launch_regs_unpacked[0][i]) begin
+            // transmit activated dc channels
+            for (int i = 0; i < NUM_CHANNEL; i++) begin
 
-                $display("i: %0d, NUM_CHANNEL: %0d", i, NUM_CHANNEL);
+                if (launch_regs_unpacked[0][i]) begin
 
-                path = $sformatf("../sw/dump/dc%0d.txt", i);
-                $readmemb(path, dc_regs_unpacked[i]);
+                    $display("i: %0d, NUM_CHANNEL: %0d", i, NUM_CHANNEL);
 
-                header = 32'hffff_ffff ^ (32'b1 << (i + 8));
-                $display("transmit byte 3 of header");
-                pc_tsmt(header[31:24]);
-                $display("transmit byte 2 of header");
-                pc_tsmt(header[23:16]);
-                $display("transmit byte 1 of header");
-                pc_tsmt(header[15:8]);
-                $display("transmit byte 0 of header");
-                pc_tsmt(header[7:0]);
+                    path = $sformatf("../sw/dump/dc%0d.txt", i);
+                    $readmemb(path, dc_regs_unpacked[i]);
 
-                for (int j = 0; j < TOTAL_REGS; j++) begin
-                    $display("i: %0d, j: %0d, NUM_CHANNEL: %0d, TOTAL_REGS: %0d", i, j, NUM_CHANNEL, TOTAL_REGS);
-                    $display("transmit byte 3 of dc_regs_unpacked[%0d][%0d]", i, j);
-                    pc_tsmt(dc_regs_unpacked[i][j][31:24]);
-                    $display("transmit byte 2 of dc_regs_unpacked[%0d][%0d]", i, j);
-                    pc_tsmt(dc_regs_unpacked[i][j][23:16]);
-                    $display("transmit byte 1 of dc_regs_unpacked[%0d][%0d]", i, j);
-                    pc_tsmt(dc_regs_unpacked[i][j][15:8]);
-                    $display("transmit byte 0 of dc_regs_unpacked[%0d][%0d]", i, j);
-                    pc_tsmt(dc_regs_unpacked[i][j][7:0]);
+                    header = 32'hffff_ffff ^ (32'b1 << (i + 8));
+                    $display("transmit byte 3 of header");
+                    pc_tsmt(header[31:24]);
+                    $display("transmit byte 2 of header");
+                    pc_tsmt(header[23:16]);
+                    $display("transmit byte 1 of header");
+                    pc_tsmt(header[15:8]);
+                    $display("transmit byte 0 of header");
+                    pc_tsmt(header[7:0]);
+
+                    for (int j = 0; j < TOTAL_REGS; j++) begin
+                        $display("i: %0d, j: %0d, NUM_CHANNEL: %0d, TOTAL_REGS: %0d", i, j, NUM_CHANNEL, TOTAL_REGS);
+                        $display("transmit byte 3 of dc_regs_unpacked[%0d][%0d]", i, j);
+                        pc_tsmt(dc_regs_unpacked[i][j][31:24]);
+                        $display("transmit byte 2 of dc_regs_unpacked[%0d][%0d]", i, j);
+                        pc_tsmt(dc_regs_unpacked[i][j][23:16]);
+                        $display("transmit byte 1 of dc_regs_unpacked[%0d][%0d]", i, j);
+                        pc_tsmt(dc_regs_unpacked[i][j][15:8]);
+                        $display("transmit byte 0 of dc_regs_unpacked[%0d][%0d]", i, j);
+                        pc_tsmt(dc_regs_unpacked[i][j][7:0]);
+                    end
+
                 end
-
             end
+
+            // transmit launch
+            $display("transmit launch");
+            header = 32'hffff_ffff;
+            pc_tsmt(header[31:24]);
+            pc_tsmt(header[23:16]);
+            pc_tsmt(header[15:8]);
+            pc_tsmt(header[7:0]);
+
+            for (int i = 0; i < 4; i++) begin
+                $display("transmit byte 3 of launch_regs_unpacked[%0d]", i);
+                pc_tsmt(launch_regs_unpacked[i][31:24]);
+                $display("transmit byte 2 of launch_regs_unpacked[%0d]", i);
+                pc_tsmt(launch_regs_unpacked[i][23:16]);
+                $display("transmit byte 1 of launch_regs_unpacked[%0d]", i);
+                pc_tsmt(launch_regs_unpacked[i][15:8]);
+                $display("transmit byte 0 of launch_regs_unpacked[%0d]", i);
+                pc_tsmt(launch_regs_unpacked[i][7:0]);
+            end
+
+            tsmt_done = 1'b1;
+
+            wait(dc_empty && dc_idle);
+            @(negedge w_clk);
         end
-
-        // transmit launch
-        $display("transmit launch");
-        header = 32'hffff_ffff;
-        pc_tsmt(header[31:24]);
-        pc_tsmt(header[23:16]);
-        pc_tsmt(header[15:8]);
-        pc_tsmt(header[7:0]);
-
-        for (int i = 0; i < 4; i++) begin
-            $display("transmit byte 3 of launch_regs_unpacked[%0d]", i);
-            pc_tsmt(launch_regs_unpacked[i][31:24]);
-            $display("transmit byte 2 of launch_regs_unpacked[%0d]", i);
-            pc_tsmt(launch_regs_unpacked[i][23:16]);
-            $display("transmit byte 1 of launch_regs_unpacked[%0d]", i);
-            pc_tsmt(launch_regs_unpacked[i][15:8]);
-            $display("transmit byte 0 of launch_regs_unpacked[%0d]", i);
-            pc_tsmt(launch_regs_unpacked[i][7:0]);
-        end
-
-        tsmt_done = 1'b1;
-
-        // wait(dut.u_launch.r_state == dut.u_launch.LAUNCH);
-        // $display("launch is in state LAUNCH");
-        // @(negedge w_clk);
-        // wait(dut.u_launch.w_all_ready);
-        wait(dc_empty && dc_idle);
-        @(negedge w_clk);
 
         $finish;
 

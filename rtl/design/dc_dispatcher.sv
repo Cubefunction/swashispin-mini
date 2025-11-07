@@ -57,6 +57,7 @@ module dc_dispatcher
         end else begin
             //o_fifo_deq    <= 1'b0;
             o_valid_frame <= 1'b0;
+            o_launch_valid <= 1'b0;
 
             case (r_state)
 
