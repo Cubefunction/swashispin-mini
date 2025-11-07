@@ -29,7 +29,7 @@ module uart_api_dc
     
     uart #(
         .DATA_WIDTH(8),
-        .RX_FIFO_DEPTH(100),
+        .RX_FIFO_DEPTH(20),
         .RX_FIFO_AF_DEPTH(16),
         .RX_FIFO_AE_DEPTH(4),
         .TX_FIFO_DEPTH(20),
@@ -95,9 +95,9 @@ module uart_api_dc
 
     fifo #(
         .WIDTH(32),
-        .DEPTH(64),       
-        .AF_DEPTH(56),
-        .AE_DEPTH(8)
+        .DEPTH(20),       
+        .AF_DEPTH(16),
+        .AE_DEPTH(4)
     ) u_fifo32 (
         .i_clk(i_clk),
         .i_rst(i_rst),
@@ -150,26 +150,26 @@ module uart_api_dc
                 5'd1 :  r_dc_valid_flags[1]  <= 1'b1;
                 5'd2 :  r_dc_valid_flags[2]  <= 1'b1;
                 5'd3 :  r_dc_valid_flags[3]  <= 1'b1;
-                // 5'd4 :  r_dc_valid_flags[4]  <= 1'b1;
-                // 5'd5 :  r_dc_valid_flags[5]  <= 1'b1;
-                // 5'd6 :  r_dc_valid_flags[6]  <= 1'b1;
-                // 5'd7 :  r_dc_valid_flags[7]  <= 1'b1;
-                // 5'd8 :  r_dc_valid_flags[8]  <= 1'b1;
-                // 5'd9 :  r_dc_valid_flags[9]  <= 1'b1;
-                // 5'd10:  r_dc_valid_flags[10] <= 1'b1;
-                // 5'd11:  r_dc_valid_flags[11] <= 1'b1;
-                // 5'd12:  r_dc_valid_flags[12] <= 1'b1;
-                // 5'd13:  r_dc_valid_flags[13] <= 1'b1;
-                // 5'd14:  r_dc_valid_flags[14] <= 1'b1;
-                // 5'd15:  r_dc_valid_flags[15] <= 1'b1;
-                // 5'd16:  r_dc_valid_flags[16] <= 1'b1;
-                // 5'd17:  r_dc_valid_flags[17] <= 1'b1;
-                // 5'd18:  r_dc_valid_flags[18] <= 1'b1;
-                // 5'd19:  r_dc_valid_flags[19] <= 1'b1;
-                // 5'd20:  r_dc_valid_flags[20] <= 1'b1;
-                // 5'd21:  r_dc_valid_flags[21] <= 1'b1;
-                // 5'd22:  r_dc_valid_flags[22] <= 1'b1;
-                // 5'd23:  r_dc_valid_flags[23] <= 1'b1;
+                 5'd4 :  r_dc_valid_flags[4]  <= 1'b1;
+                 5'd5 :  r_dc_valid_flags[5]  <= 1'b1;
+                 5'd6 :  r_dc_valid_flags[6]  <= 1'b1;
+                 5'd7 :  r_dc_valid_flags[7]  <= 1'b1;
+                 5'd8 :  r_dc_valid_flags[8]  <= 1'b1;
+                 5'd9 :  r_dc_valid_flags[9]  <= 1'b1;
+                 5'd10:  r_dc_valid_flags[10] <= 1'b1;
+                 5'd11:  r_dc_valid_flags[11] <= 1'b1;
+                 5'd12:  r_dc_valid_flags[12] <= 1'b1;
+                 5'd13:  r_dc_valid_flags[13] <= 1'b1;
+                 5'd14:  r_dc_valid_flags[14] <= 1'b1;
+                 5'd15:  r_dc_valid_flags[15] <= 1'b1;
+                 5'd16:  r_dc_valid_flags[16] <= 1'b1;
+                 5'd17:  r_dc_valid_flags[17] <= 1'b1;
+                 5'd18:  r_dc_valid_flags[18] <= 1'b1;
+                 5'd19:  r_dc_valid_flags[19] <= 1'b1;
+                 5'd20:  r_dc_valid_flags[20] <= 1'b1;
+                 5'd21:  r_dc_valid_flags[21] <= 1'b1;
+                 5'd22:  r_dc_valid_flags[22] <= 1'b1;
+                 5'd23:  r_dc_valid_flags[23] <= 1'b1;
                 default: ;
             endcase
         end
