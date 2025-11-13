@@ -37,7 +37,7 @@ module uart_api_dc
         .TX_FIFO_AE_DEPTH(4)
     ) U (
         .i_clk(i_clk),
-        .i_rst(i_rst),
+        .i_rst(!i_rst),
         .i_rx(i_rx),
         .o_tx(),
         .i_deq_rxq(w_deq_rxq),
@@ -100,7 +100,7 @@ module uart_api_dc
         .AE_DEPTH(4)
     ) u_fifo32 (
         .i_clk(i_clk),
-        .i_rst(i_rst),
+        .i_rst(!i_rst),
         .i_data(r_word_buf),
         .i_enq(r_fifo32_enq),
         .i_deq(w_fifo32_deq),   
@@ -125,7 +125,7 @@ module uart_api_dc
         .FRAME_WORDS(TOTAL_REGS)
     ) u_dispatcher (
         .i_clk(i_clk),
-        .i_rst(i_rst),
+        .i_rst(!i_rst),
         .i_fifo_data(w_fifo32_dout),
         .i_fifo_empty(w_fifo32_empty),
         .o_fifo_deq(w_fifo32_deq),
@@ -141,7 +141,7 @@ module uart_api_dc
     logic [DAC_CHANNEL-1:0]             w_armed;     
 
     always_ff @(posedge i_clk) begin
-        if (i_rst) begin
+        if (!i_rst) begin
             r_dc_valid_flags <= 'h0;
         end 
         else if (w_valid_frame) begin
@@ -189,7 +189,7 @@ module uart_api_dc
                 .DEPTH(DEPTH)
                 ) u_dc (
                 .i_clk(i_clk),
-                .i_rst(i_rst),
+                .i_rst(!i_rst),
                 .i_regs({31'h0, r_dc_valid_flags[i], w_dc_regs[TOTAL_REGS-2:0]}),
                 .i_start(w_start[i]),
                 .o_armed(w_armed[i]),
@@ -207,7 +207,7 @@ module uart_api_dc
     .NUM_LI_CHANNEL(2)
     ) u_launch (
        .i_clk(i_clk), 
-       .i_rst(i_rst),
+       .i_rst(!i_rst),
 
        .i_regs({31'h0, w_launch_valid, w_launch_cmd_reg[2:0]}),
 
