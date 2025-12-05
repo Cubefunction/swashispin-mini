@@ -1,0 +1,134 @@
+(kicad_sch
+	(version 20250114)
+	(generator "eeschema")
+	(generator_version "9.0")
+	(uuid "16d668cc-e8ef-4237-81d8-fbb7401527d9")
+	(paper "A4")
+	(lib_symbols)
+	(sheet
+		(at 101.6 76.2)
+		(size 25.4 25.4)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0.0000)
+		)
+		(uuid "07a23fa2-d12c-4921-97a3-482f4f2f6b7b")
+		(property "Sheetname" "zcu216_header"
+			(at 101.6 75.4884 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "zcu216_header.kicad_sch"
+			(at 101.6 102.1846 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(instances
+			(project "dacboard"
+				(path "/35cb74e4-0f64-454b-9b50-bfac13ed28a5/7ae8c1dd-5c28-4985-bc49-d575e389aef0"
+					(page "19")
+				)
+			)
+		)
+	)
+	(sheet
+		(at 134.62 76.2)
+		(size 25.4 25.4)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0.0000)
+		)
+		(uuid "3a359f7d-847e-4fe9-b2d0-8ca1a5344520")
+		(property "Sheetname" "alchitry_au_header"
+			(at 134.62 75.4884 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "alchitry_au_header.kicad_sch"
+			(at 134.62 102.1846 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(instances
+			(project "dacboard"
+				(path "/35cb74e4-0f64-454b-9b50-bfac13ed28a5/7ae8c1dd-5c28-4985-bc49-d575e389aef0"
+					(page "20")
+				)
+			)
+		)
+	)
+	(sheet
+		(at 167.64 76.2)
+		(size 25.4 25.4)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0.0000)
+		)
+		(uuid "4adb754a-2b3d-4d25-87ee-782eac5fb207")
+		(property "Sheetname" "output_header"
+			(at 167.64 75.4884 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "output_header.kicad_sch"
+			(at 167.64 102.1846 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(instances
+			(project "dacboard"
+				(path "/35cb74e4-0f64-454b-9b50-bfac13ed28a5/7ae8c1dd-5c28-4985-bc49-d575e389aef0"
+					(page "21")
+				)
+			)
+		)
+	)
+)
