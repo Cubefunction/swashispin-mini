@@ -1,0 +1,575 @@
+#-----------------------------------------------------------
+# Vivado v2025.1 (64-bit)
+# SW Build 6140274 on Thu May 22 00:12:29 MDT 2025
+# IP Build 6138677 on Thu May 22 03:10:11 MDT 2025
+# SharedData Build 6139179 on Tue May 20 17:58:58 MDT 2025
+# Start of session at: Fri Nov 14 18:01:14 2025
+# Process ID         : 19384
+# Current directory  : D:/ee_class/uart_api/uart_api.runs/synth_1
+# Command line       : vivado.exe -log top_dc.vds -product Vivado -mode batch -messageDb vivado.pb -notrace -source top_dc.tcl
+# Log file           : D:/ee_class/uart_api/uart_api.runs/synth_1/top_dc.vds
+# Journal file       : D:/ee_class/uart_api/uart_api.runs/synth_1\vivado.jou
+# Running On         : linhaid
+# Platform           : Windows Server 2016 or Windows 10
+# Operating System   : 26100
+# Processor Detail   : Intel(R) Core(TM) i7-10875H CPU @ 2.30GHz
+# CPU Frequency      : 2304 MHz
+# CPU Physical cores : 8
+# CPU Logical cores  : 16
+# Host memory        : 17040 MB
+# Swap memory        : 8053 MB
+# Total Virtual      : 25093 MB
+# Available Virtual  : 11540 MB
+#-----------------------------------------------------------
+source top_dc.tcl -notrace
+create_project: Time (s): cpu = 00:00:06 ; elapsed = 00:00:08 . Memory (MB): peak = 493.293 ; gain = 214.297
+Command: read_checkpoint -auto_incremental -incremental D:/ee_class/uart_api/uart_api.srcs/utils_1/imports/synth_1/uart_api_dc.dcp
+INFO: [Vivado 12-5825] Read reference checkpoint from D:/ee_class/uart_api/uart_api.srcs/utils_1/imports/synth_1/uart_api_dc.dcp for incremental synthesis
+INFO: [Vivado 12-7989] Please ensure there are no constraint changes
+Command: synth_design -top top_dc -part xc7a35tftg256-1
+Starting synth_design
+Attempting to get a license for feature 'Synthesis' and/or device 'xc7a35t'
+INFO: [Common 17-349] Got license for feature 'Synthesis' and/or device 'xc7a35t'
+INFO: [Device 21-403] Loading part xc7a35tftg256-1
+INFO: [Designutils 20-5440] No compile time benefit to using incremental synthesis; A full resynthesis will be run
+INFO: [Designutils 20-4379] Flow is switching to default flow due to incremental criteria not met. If you would like to alter this behaviour and have the flow terminate instead, please set the following parameter config_implementation {autoIncr.Synth.RejectBehavior Terminate}
+INFO: [Synth 8-7079] Multithreading enabled for synth_design using a maximum of 2 processes.
+INFO: [Synth 8-7078] Launching helper process for spawning children vivado processes
+INFO: [Synth 8-7075] Helper process launched with PID 18336
+---------------------------------------------------------------------------------
+Starting RTL Elaboration : Time (s): cpu = 00:00:04 ; elapsed = 00:00:05 . Memory (MB): peak = 1208.371 ; gain = 493.184
+---------------------------------------------------------------------------------
+INFO: [Synth 8-11241] undeclared symbol 'fifo_data', assumed default net type 'wire' [D:/ee_class/uart_api/uart_api.srcs/sources_1/new/top_dc.sv:50]
+WARNING: [Synth 8-8895] 'fifo_data' is already implicitly declared on line 50 [D:/ee_class/uart_api/uart_api.srcs/sources_1/new/top_dc.sv:90]
+INFO: [Synth 8-6157] synthesizing module 'top_dc' [D:/ee_class/uart_api/uart_api.srcs/sources_1/new/top_dc.sv:23]
+WARNING: [Synth 8-4446] all outputs are unconnected for this instance and logic may be removed [D:/ee_class/uart_api/uart_api.srcs/sources_1/new/top_dc.sv:43]
+INFO: [Synth 8-6157] synthesizing module 'ila_0' [D:/ee_class/uart_api/uart_api.runs/synth_1/.Xil/Vivado-19384-linhaid/realtime/ila_0_stub.v:6]
+INFO: [Synth 8-6155] done synthesizing module 'ila_0' (0#1) [D:/ee_class/uart_api/uart_api.runs/synth_1/.Xil/Vivado-19384-linhaid/realtime/ila_0_stub.v:6]
+INFO: [Synth 8-6157] synthesizing module 'uart_api_dc' [C:/tmp/swashispin-mini/rtl/design/uart_api_dc.sv:3]
+	Parameter DAC_WIDTH bound to: 16 - type: integer 
+	Parameter CYCLE_WIDTH bound to: 30 - type: integer 
+	Parameter DAC_CHANNEL bound to: 24 - type: integer 
+	Parameter CHANNEL_MES_WIDTH bound to: 96 - type: integer 
+	Parameter STREAM_ITER_WIDTH bound to: 10 - type: integer 
+	Parameter CORE_ITER_WIDTH bound to: 10 - type: integer 
+	Parameter DEPTH bound to: 10 - type: integer 
+	Parameter INSN_WIDTH bound to: 72 - type: integer 
+	Parameter TOTAL_REGS bound to: 32 - type: integer 
+INFO: [Synth 8-6157] synthesizing module 'dc' [C:/tmp/swashispin-mini/rtl/design/dc.sv:3]
+	Parameter DAC_WIDTH bound to: 16 - type: integer 
+	Parameter CYCLE_WIDTH bound to: 30 - type: integer 
+	Parameter STREAM_ITER_WIDTH bound to: 10 - type: integer 
+	Parameter CORE_ITER_WIDTH bound to: 10 - type: integer 
+	Parameter DEPTH bound to: 10 - type: integer 
+INFO: [Synth 8-6157] synthesizing module 'dc_stream' [C:/tmp/swashispin-mini/rtl/design/dc_stream.sv:3]
+	Parameter INSN_WIDTH bound to: 72 - type: integer 
+	Parameter ITER_WIDTH bound to: 10 - type: integer 
+	Parameter DEPTH bound to: 10 - type: integer 
+INFO: [Synth 8-6155] done synthesizing module 'dc_stream' (0#1) [C:/tmp/swashispin-mini/rtl/design/dc_stream.sv:3]
+INFO: [Synth 8-6157] synthesizing module 'dc_core' [C:/tmp/swashispin-mini/rtl/design/dc_core.sv:3]
+	Parameter DAC_WIDTH bound to: 16 - type: integer 
+	Parameter CYCLE_WIDTH bound to: 30 - type: integer 
+	Parameter ITER_WIDTH bound to: 10 - type: integer 
+INFO: [Synth 8-6157] synthesizing module 'spi_master' [C:/tmp/swashispin-mini/rtl/lib/spi_master.sv:3]
+	Parameter DATA_WIDTH bound to: 16 - type: integer 
+	Parameter SCLK_POLARITY bound to: 0 - type: integer 
+	Parameter SCLK_PHASE bound to: 0 - type: integer 
+INFO: [Synth 8-155] case statement is not full and has no default [C:/tmp/swashispin-mini/rtl/lib/spi_master.sv:93]
+INFO: [Synth 8-6155] done synthesizing module 'spi_master' (0#1) [C:/tmp/swashispin-mini/rtl/lib/spi_master.sv:3]
+INFO: [Synth 8-6155] done synthesizing module 'dc_core' (0#1) [C:/tmp/swashispin-mini/rtl/design/dc_core.sv:3]
+INFO: [Synth 8-6155] done synthesizing module 'dc' (0#1) [C:/tmp/swashispin-mini/rtl/design/dc.sv:3]
+INFO: [Synth 8-6157] synthesizing module 'uart' [C:/tmp/swashispin-mini/rtl/design/uart.sv:3]
+	Parameter DATA_WIDTH bound to: 8 - type: integer 
+	Parameter RX_FIFO_DEPTH bound to: 20 - type: integer 
+	Parameter RX_FIFO_AF_DEPTH bound to: 16 - type: integer 
+	Parameter RX_FIFO_AE_DEPTH bound to: 4 - type: integer 
+	Parameter TX_FIFO_DEPTH bound to: 20 - type: integer 
+	Parameter TX_FIFO_AF_DEPTH bound to: 16 - type: integer 
+	Parameter TX_FIFO_AE_DEPTH bound to: 4 - type: integer 
+INFO: [Synth 8-6157] synthesizing module 'baudx16_generator' [C:/tmp/swashispin-mini/rtl/lib/baudx16_generator.sv:3]
+INFO: [Synth 8-6155] done synthesizing module 'baudx16_generator' (0#1) [C:/tmp/swashispin-mini/rtl/lib/baudx16_generator.sv:3]
+INFO: [Synth 8-6157] synthesizing module 'receiver' [C:/tmp/swashispin-mini/rtl/lib/receiver.sv:3]
+INFO: [Synth 8-6155] done synthesizing module 'receiver' (0#1) [C:/tmp/swashispin-mini/rtl/lib/receiver.sv:3]
+INFO: [Synth 8-6157] synthesizing module 'fifo' [C:/tmp/swashispin-mini/rtl/lib/fifo.sv:3]
+	Parameter WIDTH bound to: 8 - type: integer 
+	Parameter DEPTH bound to: 20 - type: integer 
+	Parameter AF_DEPTH bound to: 16 - type: integer 
+	Parameter AE_DEPTH bound to: 4 - type: integer 
+INFO: [Synth 8-6155] done synthesizing module 'fifo' (0#1) [C:/tmp/swashispin-mini/rtl/lib/fifo.sv:3]
+INFO: [Synth 8-6157] synthesizing module 'transmitter' [C:/tmp/swashispin-mini/rtl/lib/transmitter.sv:3]
+INFO: [Synth 8-155] case statement is not full and has no default [C:/tmp/swashispin-mini/rtl/lib/transmitter.sv:63]
+INFO: [Synth 8-6155] done synthesizing module 'transmitter' (0#1) [C:/tmp/swashispin-mini/rtl/lib/transmitter.sv:3]
+INFO: [Synth 8-6155] done synthesizing module 'uart' (0#1) [C:/tmp/swashispin-mini/rtl/design/uart.sv:3]
+INFO: [Synth 8-6157] synthesizing module 'fifo__parameterized0' [C:/tmp/swashispin-mini/rtl/lib/fifo.sv:3]
+	Parameter WIDTH bound to: 32 - type: integer 
+	Parameter DEPTH bound to: 20 - type: integer 
+	Parameter AF_DEPTH bound to: 16 - type: integer 
+	Parameter AE_DEPTH bound to: 4 - type: integer 
+INFO: [Synth 8-6155] done synthesizing module 'fifo__parameterized0' (0#1) [C:/tmp/swashispin-mini/rtl/lib/fifo.sv:3]
+INFO: [Synth 8-6157] synthesizing module 'dc_dispatcher' [C:/tmp/swashispin-mini/rtl/design/dc_dispatcher.sv:3]
+	Parameter DAC_CHANNEL bound to: 24 - type: integer 
+	Parameter FRAME_WORDS bound to: 32 - type: integer 
+INFO: [Synth 8-6155] done synthesizing module 'dc_dispatcher' (0#1) [C:/tmp/swashispin-mini/rtl/design/dc_dispatcher.sv:3]
+INFO: [Synth 8-6157] synthesizing module 'launch' [C:/tmp/swashispin-mini/rtl/design/launch.sv:3]
+	Parameter NUM_DC_CHANNEL bound to: 24 - type: integer 
+	Parameter NUM_RF_CHANNEL bound to: 7 - type: integer 
+	Parameter NUM_LI_CHANNEL bound to: 2 - type: integer 
+INFO: [Synth 8-6155] done synthesizing module 'launch' (0#1) [C:/tmp/swashispin-mini/rtl/design/launch.sv:3]
+INFO: [Synth 8-6155] done synthesizing module 'uart_api_dc' (0#1) [C:/tmp/swashispin-mini/rtl/design/uart_api_dc.sv:3]
+INFO: [Synth 8-6157] synthesizing module 'adc_to_fifo' [D:/ee_class/uart_api/uart_api.srcs/sources_1/new/adc_to_fifo.sv:1]
+INFO: [Synth 8-6157] synthesizing module 'max11100_reader' [D:/ee_class/uart_api/uart_api.srcs/sources_1/new/max11100_reader.sv:1]
+INFO: [Synth 8-155] case statement is not full and has no default [D:/ee_class/uart_api/uart_api.srcs/sources_1/new/max11100_reader.sv:62]
+INFO: [Synth 8-6155] done synthesizing module 'max11100_reader' (0#1) [D:/ee_class/uart_api/uart_api.srcs/sources_1/new/max11100_reader.sv:1]
+INFO: [Synth 8-6157] synthesizing module 'fifo__parameterized1' [C:/tmp/swashispin-mini/rtl/lib/fifo.sv:3]
+	Parameter WIDTH bound to: 16 - type: integer 
+	Parameter DEPTH bound to: 32 - type: integer 
+	Parameter AF_DEPTH bound to: 28 - type: integer 
+	Parameter AE_DEPTH bound to: 2 - type: integer 
+INFO: [Synth 8-6155] done synthesizing module 'fifo__parameterized1' (0#1) [C:/tmp/swashispin-mini/rtl/lib/fifo.sv:3]
+INFO: [Synth 8-6155] done synthesizing module 'adc_to_fifo' (0#1) [D:/ee_class/uart_api/uart_api.srcs/sources_1/new/adc_to_fifo.sv:1]
+INFO: [Synth 8-6155] done synthesizing module 'top_dc' (0#1) [D:/ee_class/uart_api/uart_api.srcs/sources_1/new/top_dc.sv:23]
+WARNING: [Synth 8-6014] Unused sequential element r_frame_buf_reg[32] was removed.  [C:/tmp/swashispin-mini/rtl/design/dc_dispatcher.sv:54]
+WARNING: [Synth 8-6014] Unused sequential element r_frame_buf_reg[0] was removed.  [C:/tmp/swashispin-mini/rtl/design/dc_dispatcher.sv:54]
+WARNING: [Synth 8-6014] Unused sequential element hdr_bits_reg was removed.  [C:/tmp/swashispin-mini/rtl/design/dc_dispatcher.sv:72]
+INFO: [Synth 8-6071] Mark debug on the nets applies keep_hierarchy on instance 'u_adc_to_fifo'. This will prevent further optimization [D:/ee_class/uart_api/uart_api.srcs/sources_1/new/top_dc.sv:93]
+INFO: [Synth 8-6071] Mark debug on the nets applies keep_hierarchy on instance 'u_ila'. This will prevent further optimization [D:/ee_class/uart_api/uart_api.srcs/sources_1/new/top_dc.sv:43]
+WARNING: [Synth 8-7129] Port i_regs[2][31] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[2][30] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[2][29] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[2][28] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[2][27] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[2][26] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[2][25] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[2][24] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[2][23] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[2][22] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[2][21] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[2][20] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[2][19] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[2][18] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[2][17] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[2][16] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[2][15] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[2][14] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[2][13] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[2][12] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[2][11] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[2][10] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[2][9] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[2][8] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[2][7] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[2][6] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[2][5] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[2][4] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[2][3] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[2][2] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[1][31] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[1][30] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[1][29] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[1][28] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[1][27] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[1][26] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[1][25] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[1][24] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[1][23] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[1][22] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[1][21] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[1][20] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[1][19] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[1][18] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[1][17] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[1][16] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[1][15] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[1][14] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[1][13] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[1][12] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[1][11] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[1][10] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[1][9] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[1][8] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[1][7] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[0][31] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[0][30] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[0][29] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[0][28] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[0][27] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[0][26] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[0][25] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[0][24] in module launch is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[30][31] in module dc_stream is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[30][30] in module dc_stream is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[30][29] in module dc_stream is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[30][28] in module dc_stream is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[30][27] in module dc_stream is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[30][26] in module dc_stream is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[30][25] in module dc_stream is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[30][24] in module dc_stream is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[30][23] in module dc_stream is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[30][22] in module dc_stream is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[30][21] in module dc_stream is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[30][20] in module dc_stream is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[30][19] in module dc_stream is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[30][18] in module dc_stream is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[30][17] in module dc_stream is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[30][16] in module dc_stream is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[30][15] in module dc_stream is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[30][14] in module dc_stream is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[30][13] in module dc_stream is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[30][12] in module dc_stream is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[30][11] in module dc_stream is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[30][10] in module dc_stream is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[29][31] in module dc_stream is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[29][30] in module dc_stream is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[29][29] in module dc_stream is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[29][28] in module dc_stream is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[29][27] in module dc_stream is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[29][26] in module dc_stream is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[29][25] in module dc_stream is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[29][24] in module dc_stream is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[29][23] in module dc_stream is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[29][22] in module dc_stream is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[29][21] in module dc_stream is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[29][20] in module dc_stream is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[29][19] in module dc_stream is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[29][18] in module dc_stream is either unconnected or has no load
+WARNING: [Synth 8-7129] Port i_regs[29][17] in module dc_stream is either unconnected or has no load
+INFO: [Common 17-14] Message 'Synth 8-7129' appears 100 times and further instances of the messages will be disabled. Use the Tcl command set_msg_config to change the current settings.
+---------------------------------------------------------------------------------
+Finished RTL Elaboration : Time (s): cpu = 00:00:06 ; elapsed = 00:00:07 . Memory (MB): peak = 1339.961 ; gain = 624.773
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Handling Custom Attributes
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Handling Custom Attributes : Time (s): cpu = 00:00:06 ; elapsed = 00:00:07 . Memory (MB): peak = 1339.961 ; gain = 624.773
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished RTL Optimization Phase 1 : Time (s): cpu = 00:00:06 ; elapsed = 00:00:07 . Memory (MB): peak = 1339.961 ; gain = 624.773
+---------------------------------------------------------------------------------
+Netlist sorting complete. Time (s): cpu = 00:00:01 ; elapsed = 00:00:00.353 . Memory (MB): peak = 1339.961 ; gain = 0.000
+INFO: [Project 1-570] Preparing netlist for logic optimization
+
+Processing XDC Constraints
+Initializing timing engine
+Parsing XDC File [d:/ee_class/uart_api/uart_api.gen/sources_1/ip/ila_0_2/ila_0/ila_0_in_context.xdc] for cell 'u_ila'
+Finished Parsing XDC File [d:/ee_class/uart_api/uart_api.gen/sources_1/ip/ila_0_2/ila_0/ila_0_in_context.xdc] for cell 'u_ila'
+Parsing XDC File [C:/Users/cubef/Downloads/io.xdc]
+Finished Parsing XDC File [C:/Users/cubef/Downloads/io.xdc]
+INFO: [Project 1-236] Implementation specific constraints were found while reading constraint file [C:/Users/cubef/Downloads/io.xdc]. These constraints will be ignored for synthesis but will be used in implementation. Impacted constraints are listed in the file [.Xil/top_dc_propImpl.xdc].
+Resolution: To avoid this warning, move constraints listed in [.Xil/top_dc_propImpl.xdc] to another XDC file and exclude this new file from synthesis with the used_in_synthesis property (File Properties dialog in GUI) and re-run elaboration/synthesis.
+Completed Processing XDC Constraints
+
+Netlist sorting complete. Time (s): cpu = 00:00:00 ; elapsed = 00:00:00.010 . Memory (MB): peak = 1429.945 ; gain = 0.000
+INFO: [Project 1-111] Unisim Transformation Summary:
+No Unisim elements were transformed.
+
+Constraint Validation Runtime : Time (s): cpu = 00:00:00 ; elapsed = 00:00:00.100 . Memory (MB): peak = 1429.945 ; gain = 0.000
+INFO: [Designutils 20-5440] No compile time benefit to using incremental synthesis; A full resynthesis will be run
+INFO: [Designutils 20-4379] Flow is switching to default flow due to incremental criteria not met. If you would like to alter this behaviour and have the flow terminate instead, please set the following parameter config_implementation {autoIncr.Synth.RejectBehavior Terminate}
+---------------------------------------------------------------------------------
+Finished Constraint Validation : Time (s): cpu = 00:00:17 ; elapsed = 00:00:18 . Memory (MB): peak = 1429.945 ; gain = 714.758
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Loading Part and Timing Information
+---------------------------------------------------------------------------------
+Loading part: xc7a35tftg256-1
+---------------------------------------------------------------------------------
+Finished Loading Part and Timing Information : Time (s): cpu = 00:00:17 ; elapsed = 00:00:18 . Memory (MB): peak = 1429.945 ; gain = 714.758
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Applying 'set_property' XDC Constraints
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished applying 'set_property' XDC Constraints : Time (s): cpu = 00:00:17 ; elapsed = 00:00:18 . Memory (MB): peak = 1429.945 ; gain = 714.758
+---------------------------------------------------------------------------------
+INFO: [Synth 8-802] inferred FSM for state register 'r_state_reg' in module 'spi_master'
+INFO: [Synth 8-802] inferred FSM for state register 'r_state_reg' in module 'receiver'
+INFO: [Synth 8-802] inferred FSM for state register 'r_state_reg' in module 'transmitter'
+INFO: [Synth 8-802] inferred FSM for state register 'r_state_reg' in module 'launch'
+INFO: [Synth 8-802] inferred FSM for state register 'r_state_reg' in module 'max11100_reader'
+---------------------------------------------------------------------------------------------------
+                   State |                     New Encoding |                Previous Encoding 
+---------------------------------------------------------------------------------------------------
+                    IDLE |                               00 | 00000000000000000000000000000000
+                      P0 |                               01 | 00000000000000000000000000000001
+                      P1 |                               10 | 00000000000000000000000000000010
+---------------------------------------------------------------------------------------------------
+INFO: [Synth 8-3354] encoded FSM with state register 'r_state_reg' using encoding 'sequential' in module 'spi_master'
+---------------------------------------------------------------------------------------------------
+                   State |                     New Encoding |                Previous Encoding 
+---------------------------------------------------------------------------------------------------
+                    IDLE |                               00 | 00000000000000000000000000000000
+                   START |                               01 | 00000000000000000000000000000001
+                    DATA |                               10 | 00000000000000000000000000000010
+                    STOP |                               11 | 00000000000000000000000000000011
+---------------------------------------------------------------------------------------------------
+INFO: [Synth 8-3354] encoded FSM with state register 'r_state_reg' using encoding 'sequential' in module 'receiver'
+---------------------------------------------------------------------------------------------------
+                   State |                     New Encoding |                Previous Encoding 
+---------------------------------------------------------------------------------------------------
+                    IDLE |                               00 | 00000000000000000000000000000000
+                   START |                               01 | 00000000000000000000000000000001
+                    DATA |                               10 | 00000000000000000000000000000010
+                    STOP |                               11 | 00000000000000000000000000000011
+---------------------------------------------------------------------------------------------------
+INFO: [Synth 8-3354] encoded FSM with state register 'r_state_reg' using encoding 'sequential' in module 'transmitter'
+---------------------------------------------------------------------------------------------------
+                   State |                     New Encoding |                Previous Encoding 
+---------------------------------------------------------------------------------------------------
+                    IDLE |                                0 | 00000000000000000000000000000000
+                  iSTATE |                                1 | 00000000000000000000000000000001
+*
+---------------------------------------------------------------------------------------------------
+INFO: [Synth 8-3354] encoded FSM with state register 'r_state_reg' using encoding 'sequential' in module 'launch'
+---------------------------------------------------------------------------------------------------
+                   State |                     New Encoding |                Previous Encoding 
+---------------------------------------------------------------------------------------------------
+                    IDLE |                             0001 | 00000000000000000000000000000000
+               ASSERT_CS |                             0010 | 00000000000000000000000000000001
+                READ_SPI |                             0100 | 00000000000000000000000000000010
+                    DONE |                             1000 | 00000000000000000000000000000011
+---------------------------------------------------------------------------------------------------
+INFO: [Synth 8-3354] encoded FSM with state register 'r_state_reg' using encoding 'one-hot' in module 'max11100_reader'
+---------------------------------------------------------------------------------
+Finished RTL Optimization Phase 2 : Time (s): cpu = 00:00:18 ; elapsed = 00:00:19 . Memory (MB): peak = 1429.945 ; gain = 714.758
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start RTL Component Statistics 
+---------------------------------------------------------------------------------
+Detailed RTL Component Info : 
++---Adders : 
+	  24 Input   32 Bit       Adders := 1     
+	   2 Input   30 Bit       Adders := 24    
+	   2 Input   16 Bit       Adders := 49    
+	   2 Input   11 Bit       Adders := 25    
+	   2 Input   10 Bit       Adders := 24    
+	   2 Input    6 Bit       Adders := 5     
+	   2 Input    5 Bit       Adders := 8     
+	   2 Input    4 Bit       Adders := 51    
+	   2 Input    3 Bit       Adders := 2     
+	   2 Input    2 Bit       Adders := 1     
++---XORs : 
+	   2 Input     32 Bit         XORs := 3     
++---Registers : 
+	               72 Bit    Registers := 264   
+	               32 Bit    Registers := 60    
+	               30 Bit    Registers := 48    
+	               24 Bit    Registers := 4     
+	               16 Bit    Registers := 123   
+	               11 Bit    Registers := 25    
+	               10 Bit    Registers := 24    
+	                8 Bit    Registers := 2     
+	                7 Bit    Registers := 3     
+	                6 Bit    Registers := 5     
+	                5 Bit    Registers := 5     
+	                4 Bit    Registers := 51    
+	                3 Bit    Registers := 2     
+	                2 Bit    Registers := 4     
+	                1 Bit    Registers := 222   
++---RAMs : 
+	              640 Bit	(20 X 32 bit)          RAMs := 1     
+	              512 Bit	(32 X 16 bit)          RAMs := 1     
+	              160 Bit	(20 X 8 bit)          RAMs := 2     
++---Muxes : 
+	   5 Input   32 Bit        Muxes := 24    
+	   4 Input   32 Bit        Muxes := 25    
+	   2 Input   32 Bit        Muxes := 2     
+	   5 Input   30 Bit        Muxes := 48    
+	   3 Input   16 Bit        Muxes := 25    
+	   2 Input   16 Bit        Muxes := 25    
+	   5 Input   16 Bit        Muxes := 48    
+	   3 Input   11 Bit        Muxes := 24    
+	   2 Input   11 Bit        Muxes := 24    
+	   5 Input   10 Bit        Muxes := 24    
+	   2 Input    8 Bit        Muxes := 1     
+	   4 Input    6 Bit        Muxes := 1     
+	   2 Input    5 Bit        Muxes := 35    
+	   2 Input    4 Bit        Muxes := 52    
+	   3 Input    4 Bit        Muxes := 25    
+	   4 Input    4 Bit        Muxes := 2     
+	   2 Input    3 Bit        Muxes := 2     
+	   4 Input    3 Bit        Muxes := 2     
+	   3 Input    2 Bit        Muxes := 25    
+	   2 Input    2 Bit        Muxes := 30    
+	   4 Input    2 Bit        Muxes := 2     
+	   2 Input    1 Bit        Muxes := 307   
+	   3 Input    1 Bit        Muxes := 200   
+	   5 Input    1 Bit        Muxes := 48    
+	   4 Input    1 Bit        Muxes := 53    
+---------------------------------------------------------------------------------
+Finished RTL Component Statistics 
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Part Resource Summary
+---------------------------------------------------------------------------------
+Part Resources:
+DSPs: 90 (col length:60)
+BRAMs: 100 (col length: RAMB18 60 RAMB36 30)
+---------------------------------------------------------------------------------
+Finished Part Resource Summary
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Cross Boundary and Area Optimization
+---------------------------------------------------------------------------------
+WARNING: [Synth 8-7080] Parallel synthesis criteria is not met
+INFO: [Synth 8-12589] Found 7 bits of RAM  (u_uart_api_dci_1/i_50) with no load. RAM width may be reduced from 8 to 1 
+---------------------------------------------------------------------------------
+Finished Cross Boundary and Area Optimization : Time (s): cpu = 00:00:25 ; elapsed = 00:00:26 . Memory (MB): peak = 1430.285 ; gain = 715.098
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start ROM, RAM, DSP, Shift Register and Retiming Reporting
+---------------------------------------------------------------------------------
+
+Distributed RAM: Preliminary Mapping Report (see note below)
++------------------+----------------------+-----------+----------------------+-------------+
+|Module Name       | RTL Object           | Inference | Size (Depth x Width) | Primitives  | 
++------------------+----------------------+-----------+----------------------+-------------+
+|top_dc            | U/rx_fifo/q_data_reg | Implied   | 32 x 8               | RAM32M x 2  | 
+|top_dc            | u_fifo32/q_data_reg  | Implied   | 32 x 32              | RAM32M x 6  | 
+|i_0/u_adc_to_fifo | u_fifo/q_data_reg    | Implied   | 32 x 16              | RAM32M x 3  | 
++------------------+----------------------+-----------+----------------------+-------------+
+
+Note: The table above is a preliminary report that shows the Distributed RAMs at the current stage of the synthesis flow. Some Distributed RAMs may be reimplemented as non Distributed RAM primitives later in the synthesis flow. Multiple instantiated RAMs are reported only once.
+---------------------------------------------------------------------------------
+Finished ROM, RAM, DSP, Shift Register and Retiming Reporting
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Applying XDC Timing Constraints
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Applying XDC Timing Constraints : Time (s): cpu = 00:00:30 ; elapsed = 00:00:31 . Memory (MB): peak = 1539.051 ; gain = 823.863
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Timing Optimization
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Timing Optimization : Time (s): cpu = 00:00:32 ; elapsed = 00:00:34 . Memory (MB): peak = 1598.953 ; gain = 883.766
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start ROM, RAM, DSP, Shift Register and Retiming Reporting
+---------------------------------------------------------------------------------
+
+Distributed RAM: Final Mapping Report
++------------------+----------------------+-----------+----------------------+-------------+
+|Module Name       | RTL Object           | Inference | Size (Depth x Width) | Primitives  | 
++------------------+----------------------+-----------+----------------------+-------------+
+|top_dc            | U/rx_fifo/q_data_reg | Implied   | 32 x 8               | RAM32M x 2  | 
+|top_dc            | u_fifo32/q_data_reg  | Implied   | 32 x 32              | RAM32M x 6  | 
+|i_0/u_adc_to_fifo | u_fifo/q_data_reg    | Implied   | 32 x 16              | RAM32M x 3  | 
++------------------+----------------------+-----------+----------------------+-------------+
+
+---------------------------------------------------------------------------------
+Finished ROM, RAM, DSP, Shift Register and Retiming Reporting
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Technology Mapping
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Technology Mapping : Time (s): cpu = 00:00:38 ; elapsed = 00:00:39 . Memory (MB): peak = 1668.469 ; gain = 953.281
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start IO Insertion
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Flattening Before IO Insertion
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Flattening Before IO Insertion
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Final Netlist Cleanup
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Final Netlist Cleanup
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished IO Insertion : Time (s): cpu = 00:00:43 ; elapsed = 00:00:44 . Memory (MB): peak = 1882.727 ; gain = 1167.539
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Renaming Generated Instances
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Renaming Generated Instances : Time (s): cpu = 00:00:43 ; elapsed = 00:00:44 . Memory (MB): peak = 1882.727 ; gain = 1167.539
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Rebuilding User Hierarchy
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Rebuilding User Hierarchy : Time (s): cpu = 00:00:47 ; elapsed = 00:00:48 . Memory (MB): peak = 1911.676 ; gain = 1196.488
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Renaming Generated Ports
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Renaming Generated Ports : Time (s): cpu = 00:00:47 ; elapsed = 00:00:48 . Memory (MB): peak = 1911.676 ; gain = 1196.488
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Handling Custom Attributes
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Handling Custom Attributes : Time (s): cpu = 00:00:48 ; elapsed = 00:00:49 . Memory (MB): peak = 1911.676 ; gain = 1196.488
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Renaming Generated Nets
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Renaming Generated Nets : Time (s): cpu = 00:00:48 ; elapsed = 00:00:49 . Memory (MB): peak = 1911.676 ; gain = 1196.488
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Writing Synthesis Report
+---------------------------------------------------------------------------------
+
+Report BlackBoxes: 
++------+--------------+----------+
+|      |BlackBox name |Instances |
++------+--------------+----------+
+|1     |ila_0         |         1|
++------+--------------+----------+
+
+Report Cell Usage: 
++------+---------+------+
+|      |Cell     |Count |
++------+---------+------+
+|1     |ila      |     1|
+|2     |BUFG     |     1|
+|3     |CARRY4   |  1828|
+|4     |LUT1     |   756|
+|5     |LUT2     |  1753|
+|6     |LUT3     |  6198|
+|7     |LUT4     |  1871|
+|8     |LUT5     |   538|
+|9     |LUT6     |  6702|
+|10    |RAM32M   |     9|
+|11    |RAM32X1D |     4|
+|12    |FDRE     | 23905|
+|13    |FDSE     |   122|
+|14    |IBUF     |     5|
+|15    |OBUF     |    99|
++------+---------+------+
+---------------------------------------------------------------------------------
+Finished Writing Synthesis Report : Time (s): cpu = 00:00:48 ; elapsed = 00:00:50 . Memory (MB): peak = 1911.676 ; gain = 1196.488
+---------------------------------------------------------------------------------
+Synthesis finished with 0 errors, 0 critical warnings and 1 warnings.
+Synthesis Optimization Runtime : Time (s): cpu = 00:00:37 ; elapsed = 00:00:45 . Memory (MB): peak = 1911.695 ; gain = 1106.523
+Synthesis Optimization Complete : Time (s): cpu = 00:00:48 ; elapsed = 00:00:50 . Memory (MB): peak = 1911.695 ; gain = 1196.508
+INFO: [Project 1-571] Translating synthesized netlist
+Netlist sorting complete. Time (s): cpu = 00:00:01 ; elapsed = 00:00:00.494 . Memory (MB): peak = 1938.766 ; gain = 0.000
+INFO: [Netlist 29-17] Analyzing 1841 Unisim elements for replacement
+INFO: [Netlist 29-28] Unisim Transformation completed in 0 CPU seconds
+INFO: [Project 1-570] Preparing netlist for logic optimization
+INFO: [Opt 31-138] Pushed 0 inverter(s) to 0 load pin(s).
+Netlist sorting complete. Time (s): cpu = 00:00:00 ; elapsed = 00:00:00.011 . Memory (MB): peak = 1953.824 ; gain = 0.000
+INFO: [Project 1-111] Unisim Transformation Summary:
+  A total of 13 instances were transformed.
+  RAM32M => RAM32M (RAMD32(x6), RAMS32(x2)): 9 instances
+  RAM32X1D => RAM32X1D (RAMD32(x2)): 4 instances
+
+Synth Design complete | Checksum: 431d3fb
+INFO: [Common 17-83] Releasing license: Synthesis
+75 Infos, 106 Warnings, 0 Critical Warnings and 0 Errors encountered.
+synth_design completed successfully
+synth_design: Time (s): cpu = 00:00:56 ; elapsed = 00:01:02 . Memory (MB): peak = 1953.824 ; gain = 1419.664
+Write ShapeDB Complete: Time (s): cpu = 00:00:00 ; elapsed = 00:00:00.037 . Memory (MB): peak = 1953.824 ; gain = 0.000
+INFO: [Common 17-1381] The checkpoint 'D:/ee_class/uart_api/uart_api.runs/synth_1/top_dc.dcp' has been generated.
+INFO: [Vivado 12-24828] Executing command : report_utilization -file top_dc_utilization_synth.rpt -pb top_dc_utilization_synth.pb
+INFO: [Common 17-206] Exiting Vivado at Fri Nov 14 18:02:34 2025...

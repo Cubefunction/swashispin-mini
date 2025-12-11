@@ -1,0 +1,4 @@
+Time resolution is 1 ps
+---- Sending fixed frame for Channel 0 ----
+Channel 0 frame transmitted successfully.
+$finish called at time : 23264089991 ps : File "D:/ee_class/uart_api/uart_api.srcs/sim_1/new/uart_api_dc_tb.sv" Line 110

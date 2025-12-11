@@ -1,0 +1,16 @@
+# compile verilog/system verilog design source files
+sv xil_defaultlib  --include "../../../../../../Xilinx/2025.1/Vivado/data/rsb/busdef" \
+"../../../../../ESE518/SwashiSpin/src/soc/rtl/lib/baudx16_generator.sv" \
+"C:/tmp/dc_dispatcher.sv" \
+"../../../../../ESE518/SwashiSpin/src/soc/rtl/lib/fifo.sv" \
+"../../../../../ESE518/SwashiSpin/src/soc/rtl/lib/receiver.sv" \
+"../../../../../ESE518/SwashiSpin/src/soc/rtl/lib/transmitter.sv" \
+"../../../../../ESE518/SwashiSpin/src/soc/rtl/design/uart.sv" \
+"C:/tmp/uart_api_dc.sv" \
+"../../../../uart_api.srcs/sim_1/new/uart_api_dc_tb.sv" \
+
+# compile glbl module
+verilog xil_defaultlib "glbl.v"
+
+# Do not sort compile order
+nosort
