@@ -1,14 +1,13 @@
 # Top-level variables
 SIM := vcs
-SRC := $(wildcard lib/*.sv design/*.sv)
+SRC := $(wildcard src/dc*) $(wildcard src/rf*) $(wildcard src/launch*) src/sequencer.sv sim/cmd_dpi.c lib/axil_slave_regs.sv lib/debouncer.sv lib/button_detector.sv lib/ad5791.sv lib/zcu216_dac.sv
 
-# SRC := $(filter-out design/uart.sv design/axi_lite_slave.sv lib/baud,$(SRC))
-TB ?= uart_api_dc_tb
-TB_SRC := tb/$(TB).sv
+TB ?= simulator2
+TB_SRC := sim/$(TB).sv
 TARGET := $(TB)
 CORES := $(shell getconf _NPROCESSORS_ONLN)
 
-VCS_FLAGS = -full64 -sverilog -debug_acc+all+dmptf -debug_region+cell+encrypt -kdb +warn=all -j$(CORES) +v2k
+VCS_FLAGS = -full64 -sverilog +incdir+include -debug_acc+all+dmptf -debug_region+cell+encrypt -kdb +warn=all -j$(CORES) +v2k
 VERDI_FLAGS = +fsdbfile+dump.fsdb +vcs+all -gui
 
 all: $(TARGET)
