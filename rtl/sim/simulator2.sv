@@ -1,7 +1,7 @@
 `default_nettype none
 `timescale 1ns / 1ps
 `include "include/dc.svh"
-`include "include/rf.svh"
+//`include "include/rf.svh"
 
 import "DPI-C" function int cmd_open(input string path);
 import "DPI-C" function int cmd_accept_poll(input int timeout_ms);
@@ -201,7 +201,7 @@ module simulator;
                 $display("tx_data: %s", line);
 
                 if ($sscanf(line, "0x%4h", tx_data) == 1) begin
-                    uart_tsmt(tx_data);
+                    pc_tsmt(tx_data);
                 end
                 else if ($sscanf(line, "run %d", t) == 1) begin
                     repeat (t/10) @(negedge w_clk);

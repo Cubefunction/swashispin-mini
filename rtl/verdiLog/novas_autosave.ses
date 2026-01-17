@@ -1,0 +1,96 @@
+@verdi rc file Version 1.0
+[General]
+saveDB = TRUE
+relativePath = FALSE
+saveSingleView = FALSE
+saveNWaveWinId = 
+VerdiVersion = Verdi_V-2023.12-1
+[KeyNote]
+Line1 = Automatic Backup 0
+Line2 = Save Open Database Information: Yes
+Line3 = Path Option: Absolute Paths
+Line4 = Windows Option: All Windows
+[OneSearch]
+isExisted = TRUE
+[TestBench]
+ConstrViewShow = 0
+InherViewShow = 0
+FSDBMsgShow = 0
+AnnotationShow = 0
+Console = FALSE
+powerDumped = 0
+[fusa]
+fdb_server = 
+fdb_proj = 
+fdb_campaign = 
+fdb_tool = 
+[hb]
+postSimFile = /home/linhaid/swashispin-mini/rtl/inter.fsdb
+syncTime = 4286360000
+viewport = 318 120 1918 815 0 0 402 1694
+activeNode = "simulator.wait_client"
+activeScope = "simulator.wait_client"
+activeFile = "sim/simulator2.sv"
+interactiveMode = False
+viewType = Source
+simulatorMode = False
+sourceBeginLine = 179
+baMode = False
+srcLineNum = True
+AutoWrap = True
+IdentifyFalseLogic = False
+syncSignal = False
+traceMode = Hierarchical
+showTraceInSchema = True
+paMode = False
+funcMode = False
+powerAwareAnnot = True
+safetyAwareAnnot = True
+amsAnnot = True
+DnDtraceCrossHierOnly = True
+leadingZero = False
+signalPane = False
+SourceVerticalScrollLines = 5
+Scope1 = "simulator.wait_client"
+Scope2 = "dc_dispatcher"
+rangeSelection = 183 183 1 14 1 1
+sdfCheckUndef = FALSE
+simFlow = FALSE
+[hb.design]
+importCmd = "-simflow" "-dbdir" "./simulator2.daidir" 
+invokeDir = /home/linhaid/swashispin-mini/rtl
+[hb.sourceTab.1]
+scope = simulator.wait_client
+File = /home/linhaid/swashispin-mini/rtl/sim/simulator2.sv
+Line = 180
+[nMemoryManager]
+WaveformFile = /home/linhaid/swashispin-mini/rtl/inter.fsdb
+UserActionNum = 0
+nMemWindowNum = 0
+[wave.0]
+viewPort = 0 28 1918 628 100 392
+primaryWindow = TRUE
+SessionFile = /home/linhaid/swashispin-mini/rtl/verdiLog/novas_autosave.ses.wave.0
+displayGrid = FALSE
+hierarchicalName = FALSE
+waveformToolTip = FALSE
+snap = TRUE
+displayLeadingZeros = FALSE
+fixDelta = FALSE
+displayCursorMarker = FALSE
+autoUpdate = FALSE
+highlightGlitchs = FALSE
+waveformSyncCursorMarker = FALSE
+waveformSyncHorizontalRange = FALSE
+waveformSyncVerticalscroll = FALSE
+displayErrors = TRUE
+displayMsgSymbols = TRUE
+showMsgDescriptions = TRUE
+autoFit = FALSE
+displayDeltaY = FALSE
+centerCursor = FALSE
+fsaRegMask = TRUE
+fsaCoreMask = TRUE
+fsaSfsmMask = TRUE
+fsaEcrMask = TRUE
+tPropMask = TRUE

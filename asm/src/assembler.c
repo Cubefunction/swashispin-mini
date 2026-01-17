@@ -48,10 +48,11 @@ static int assemble(FILE *fp,
             success = fgets(line, sizeof(line), fp);
             continue;
         }
+        uint32_t channel = 0;
 
         switch (state) {
 
-            case PROGRAM:
+            case PROGRAM:{
 
                 uint32_t channel;
 
@@ -71,8 +72,8 @@ static int assemble(FILE *fp,
                 }
 
                 break;
-
-            case DC_REPEAT:
+		}
+            case DC_REPEAT:{
 
                 uint32_t dc_repeat;
 
@@ -85,9 +86,8 @@ static int assemble(FILE *fp,
                     return -1;
                 }
 
-                break;
-
-            case DC_INSN:
+                break;}
+            case DC_INSN:{
 
                 dc_insn_t dc_insn;
 
@@ -115,9 +115,9 @@ static int assemble(FILE *fp,
 
                 }
 
-                break;
+                break;}
 
-            case RF_REPEAT:
+            case RF_REPEAT:{
 
                 uint32_t rf_repeat;
 
@@ -130,9 +130,9 @@ static int assemble(FILE *fp,
                     return -1;
                 }
 
-                break;
+                break;}
 
-            case RF_FNCO:
+            case RF_FNCO:{
 
                 char fnco_tok[32];
 
@@ -149,9 +149,9 @@ static int assemble(FILE *fp,
                     return -1;
                 }
                 
-                break;
+                break;}
 
-            case RF_INSN:
+            case RF_INSN:{
 
                 rf_insn_t rf_insn;
 
@@ -179,14 +179,14 @@ static int assemble(FILE *fp,
 
                 }
 
-                break;
+                break;}
 
-            case LAUNCH:
+            case LAUNCH:{
 
                 launch_parse(line, *launch);
                 state = PROGRAM;
                 success = fgets(line, sizeof(line), fp);
-                break;
+                break;}
 
         }
     }

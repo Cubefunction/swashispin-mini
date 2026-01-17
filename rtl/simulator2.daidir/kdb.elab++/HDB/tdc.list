@@ -1,0 +1,15 @@
+include/dc.svh
+include/launch.vh
+lib/ad5791.sv
+lib/axil_slave_regs.sv
+sim/simulator2.sv
+src/dc.sv
+src/dc_core.sv
+src/dc_decode.sv
+src/dc_dispatcher.sv
+src/dc_regs.v
+src/dc_spi_master.sv
+src/dcli.sv
+src/launch.sv
+src/launch_regs.v
+src/sequencer.sv
