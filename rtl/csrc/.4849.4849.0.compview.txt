@@ -1,0 +1,10 @@
+{"vcs1":{"timestamp_begin":1768690987.526830447, "rt":1.26, "ut":0.34, "st":0.11}}
+{"vcselab":{"timestamp_begin":1768690988.834679470, "rt":1.13, "ut":0.14, "st":0.05}}
+{"link":{"timestamp_begin":1768690989.999076818, "rt":0.14, "ut":0.14, "st":0.06}}
+{"SNPS_VCS_INTERNAL_ROOT_START_TIME": 1768690987.173165929}
+{"VCS_COMP_START_TIME": 1768690987.173165929}
+{"VCS_COMP_END_TIME": 1768690990.220098170}
+{"VCS_USER_OPTIONS": "-full64 -sverilog +incdir+include -debug_acc+all+dmptf -debug_region+cell+encrypt -kdb +warn=all -j2 +v2k src/dc_spi_master.sv src/dcli.sv src/dc_decode.sv src/dc.sv src/dc_core.sv src/dc_dispatcher.sv src/dc_regs.v src/launch_regs.v src/launch.sv src/sequencer.sv sim/cmd_dpi.c lib/axil_slave_regs.sv lib/ad5791.sv sim/simulator2.sv -o simulator2"}
+{"vcs1": {"peak_mem": 467012}}
+{"vcs1": {"peak_mem": 543616}}
+{"vcselab": {"peak_mem": 247668}}
