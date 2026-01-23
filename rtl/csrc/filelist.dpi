@@ -1,6 +1,0 @@
-DPI_STUB_OBJS_OBJ0=./../simulator2.daidir/vc_hdrs.o
-DPI_STUB_OBJS_SRC0=./../simulator2.daidir/vc_hdrs.c
-DPI_STUB_OBJS += $(DPI_STUB_OBJS_OBJ0)
-$(DPI_STUB_OBJS_OBJ0): $(DPI_STUB_OBJS_SRC0)
-	@$(CC) -I/synopsys/tools/vcs/V-2023.12-1/include  -pipe -fPIC    -I/synopsys/tools/vcs/V-2023.12-1/include  -fPIC -c -o $(DPI_STUB_OBJS_OBJ0) $(DPI_STUB_OBJS_SRC0)
-	@strip -g $(DPI_STUB_OBJS_OBJ0)
