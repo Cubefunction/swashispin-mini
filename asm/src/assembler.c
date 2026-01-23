@@ -26,11 +26,9 @@ static int assemble(FILE *fp,
 
     typedef enum {
         PROGRAM,
+        DC_CTRL,
         DC_REPEAT,
         DC_INSN,
-        RF_FNCO,
-        RF_REPEAT,
-        RF_INSN,
         LAUNCH
     } state_t;
 
@@ -39,8 +37,7 @@ static int assemble(FILE *fp,
     char tmp[10];
     char *success = tmp;
 
-    int i = 0;
-    long double rf_fnco_hz;
+    int i;
 
     while (success != NULL) {
 
@@ -48,48 +45,90 @@ static int assemble(FILE *fp,
             success = fgets(line, sizeof(line), fp);
             continue;
         }
-        uint32_t channel = 0;
 
         switch (state) {
 
-            case PROGRAM:{
+            case PROGRAM:
 
                 uint32_t channel;
 
                 if (sscanf(line, ".program dc%u ", &channel)){
+
                     dc_programs[channel] = (dc_program_t *)calloc(1, sizeof(dc_program_t));
-                    state = DC_REPEAT;
+                    dc_programs[channel]->ctrl.dvsr = -1;
+                    dc_programs[channel]->ctrl.cs_up_cycles = -1;
+                    dc_programs[channel]->ctrl.ldac_cycles = -1;
+
+                    state = DC_CTRL;
                     success = fgets(line, sizeof(line), fp);
-                } else if (sscanf(line, ".program rf%u ", &channel)) {
-                    rf_programs[channel] = (rf_program_t *)calloc(1, sizeof(rf_program_t));
-                    state = RF_REPEAT;
-                    success = fgets(line, sizeof(line), fp);
+
                 } else if (strncmp(line, ".launch", 7) == 0) {
+
                     *launch = (launch_t *)calloc(1, sizeof(launch_t));
+
                     state = LAUNCH;
+
                 } else {
                     return -1;
                 }
 
                 break;
-		}
-            case DC_REPEAT:{
+
+            case DC_CTRL:
+
+                int dc_dvsr;
+                int dc_cs_up_cycles;
+                int dc_ldac_cycles;
+
+                if (sscanf(line, ".dvsr %d ", &dc_dvsr)) {
+
+                    dc_programs[channel]->ctrl.dvsr = dc_dvsr;
+                    assert(dc_dvsr > 0);
+
+                    success = fgets(line, sizeof(line), fp);
+
+                } else if (sscanf(line, ".csup %d ", &dc_cs_up_cycles)) {
+
+                    dc_programs[channel]->ctrl.cs_up_cycles = dc_cs_up_cycles;
+                    assert(dc_cs_up_cycles > 0);
+
+                    success = fgets(line, sizeof(line), fp);
+
+                } else if (sscanf(line, ".ldac %d ", &dc_ldac_cycles)) {
+
+                    dc_programs[channel]->ctrl.ldac_cycles = dc_ldac_cycles;
+                    assert(dc_ldac_cycles > 0);
+
+                    success = fgets(line, sizeof(line), fp);
+
+                } else {
+                    state = DC_REPEAT;
+                }
+
+                break;
+
+            case DC_REPEAT:
 
                 uint32_t dc_repeat;
 
                 if (sscanf(line, ".repeat %u ", &dc_repeat)) {
+
                     dc_programs[channel]->repeat = dc_repeat;
                     assert(dc_repeat > 0);
                     state = DC_INSN;
+
                     success = fgets(line, sizeof(line), fp);
+
                 } else {
                     return -1;
                 }
 
-                break;}
-            case DC_INSN:{
+                break;
+
+            case DC_INSN:
 
                 dc_insn_t dc_insn;
+                i = 0;
 
                 while (success != NULL) {
 
@@ -115,78 +154,14 @@ static int assemble(FILE *fp,
 
                 }
 
-                break;}
+                break;
 
-            case RF_REPEAT:{
-
-                uint32_t rf_repeat;
-
-                if (sscanf(line, ".repeat %u ", &rf_repeat)) {
-                    rf_programs[channel]->repeat = rf_repeat;
-                    assert(rf_repeat > 0);
-                    state = RF_FNCO;
-                    success = fgets(line, sizeof(line), fp);
-                } else {
-                    return -1;
-                }
-
-                break;}
-
-            case RF_FNCO:{
-
-                char fnco_tok[32];
-
-                if (sscanf(line, ".fnco %31s ", fnco_tok)) {
-                    if (parse_freq(fnco_tok, &rf_fnco_hz) == 0) {
-                        rf_programs[channel]->fnco = real2twos(RF_FNCO_MIN, 
-                            RF_FNCO_MAX, RF_FNCO_BITS, rf_fnco_hz, 1);
-                        state = RF_INSN;
-                        success = fgets(line, sizeof(line), fp);
-                    } else {
-                        return -1;
-                    }
-                } else {
-                    return -1;
-                }
-                
-                break;}
-
-            case RF_INSN:{
-
-                rf_insn_t rf_insn;
-
-                while (success != NULL) {
-
-                    if (rf_parse_insn(line, &rf_insn, rf_fnco_hz) == 0) {
-
-                        if (i >= RF_DEPTH) {
-                            printf("Exceeding maximum number of rf instructions:\n");
-                            printf("%s\n", line);
-                            return -1;
-                        } else {
-                            rf_programs[channel]->insns[i] = rf_insn;
-                            success = fgets(line, sizeof(line), fp);
-                            i++;
-                        }
-
-                    } else {
-                        rf_programs[channel]->len = i;
-                        rf_assemble(rf_programs[channel]);
-                        i = 0;
-                        state = PROGRAM;
-                        break;
-                    }
-
-                }
-
-                break;}
-
-            case LAUNCH:{
+            case LAUNCH:
 
                 launch_parse(line, *launch);
                 state = PROGRAM;
                 success = fgets(line, sizeof(line), fp);
-                break;}
+                break;
 
         }
     }
@@ -195,8 +170,7 @@ static int assemble(FILE *fp,
 
 }
 
-static uint64_t program_t(dc_program_t *dc_programs[],
-                          rf_program_t *rf_programs[]) {
+static uint64_t program_t(dc_program_t *dc_programs[]) {
 
     uint64_t max_ns = 0;
     uint64_t cycle_ns = NS_PER_CYCLE;
@@ -228,95 +202,19 @@ static uint64_t program_t(dc_program_t *dc_programs[],
 
     }
 
-    for (int i = 0; i < RF_CHANNELS; i++) {
-
-        if (rf_programs[i] != NULL) {
-
-            double t_ns = 0.0;
-            double dt_ns = 0.0;
-
-            for (unsigned int j = 0; j < rf_programs[i]->len; j++) {
-
-                rf_insn_t *insn = &(rf_programs[i]->insns[j]);
-                uint64_t samples = (uint64_t)insn->samples;
-                uint64_t dsamples = (uint64_t)insn->dsamples;
-
-                t_ns += ((double)samples) * sample_ns;
-                dt_ns += ((double)dsamples) * sample_ns;
-
-            }
-
-            uint64_t repeat = rf_programs[i]->repeat;
-            t_ns *= (double)repeat;
-            dt_ns = ((double)(repeat - 1)) * dt_ns * ((double)repeat) / 2.0;
-            t_ns += dt_ns;
-
-            if (((uint64_t)llround(t_ns)) > max_ns)
-                max_ns = ((uint64_t)llround(t_ns));
-
-        }
-
-    }
-
     return max_ns;
 
 }
 
-/*static void write_pipe(dc_program_t *dc_programs[], */
-/*                       rf_program_t *rf_programs[],*/
-/*                       launch_t *launch,*/
-/*                       FILE *pipe) {*/
-/**/
-/*    uint32_t page_size = (1U << 12);*/
-/**/
-/*    for (int i = 0; i < DC_CHANNELS; i++) {*/
-/**/
-/*        if (dc_programs[i] != NULL) {*/
-/**/
-/*            uint32_t base = i * page_size;*/
-/**/
-/*            fprintf(pipe, "0x%08X 0x%08X\n", base + (DC_TOTAL_REGS - 1) * 4, 0);*/
-/**/
-/*            for (unsigned int j = 0; j < DC_TOTAL_REGS; j++) {*/
-/*                fprintf(pipe, "0x%08X 0x%08X\n", base + j * 4, (dc_programs[i]->regs)[j]);*/
-/*            }*/
-/**/
-/*        }*/
-/**/
-/*    }*/
-/**/
-/*    for (int i = 0; i < RF_CHANNELS; i++) {*/
-/**/
-/*        if (rf_programs[i] != NULL) {*/
-/**/
-/*            uint32_t base = (DC_CHANNELS + i) * page_size;*/
-/**/
-/*            fprintf(pipe, "0x%08X 0x%08X\n", base + (RF_TOTAL_REGS - 1) * 4, 0);*/
-/**/
-/*            for (unsigned int j = 0; j < RF_TOTAL_REGS; j++) {*/
-/*                fprintf(pipe, "0x%08X 0x%08X\n", base + j * 4, (rf_programs[i]->regs)[j]);*/
-/*            }*/
-/**/
-/*        }*/
-/**/
-/*    }*/
-/**/
-/*    if (launch != NULL) {*/
-/**/
-/*        uint32_t base = (DC_CHANNELS + RF_CHANNELS) * page_size;*/
-/**/
-/*        fprintf(pipe, "0x%08X 0x%08X\n", base + (LAUNCH_TOTAL_REGS - 1) * 4, 0);*/
-/**/
-/*        fprintf(pipe, "0x%08X 0x%08X\n", base, launch->dc_chmask);*/
-/*        fprintf(pipe, "0x%08X 0x%08X\n", base + 4, launch->rf_chmask);*/
-/*        fprintf(pipe, "0x%08X 0x%08X\n", base + 8, launch->li_chmask);*/
-/*        fprintf(pipe, "0x%08X 0x%08X\n", base + (LAUNCH_TOTAL_REGS - 1) * 4, 1);*/
-/**/
-/*    }*/
-/*}*/
+static void write_reg_sim(uint8_t idx, uint32_t data) {
+    sim_sendf("0x%02X\n", (uint8_t)(idx & 0x7f));
+    sim_sendf("0x%02X\n", (uint8_t)(data >> 24));
+    sim_sendf("0x%02X\n", (uint8_t)(data >> 16));
+    sim_sendf("0x%02X\n", (uint8_t)(data >> 8));
+    sim_sendf("0x%02X\n", (uint8_t)(data));
+}
 
 static int write_sim(dc_program_t *dc_programs[], 
-                     rf_program_t *rf_programs[],
                      launch_t *launch) {
 
     if (sim_connect(SOCKET) != 0) {
@@ -324,34 +222,21 @@ static int write_sim(dc_program_t *dc_programs[],
         return -1;
     }
 
-    uint32_t page_size = (1U << 12);
-
     for (int i = 0; i < DC_CHANNELS; i++) {
 
         if (dc_programs[i] != NULL) {
 
-            uint32_t base = i * page_size;
-
-            sim_sendf("0x%08X 0x%08X\n", base + (DC_TOTAL_REGS - 1) * 4, 0);
+            write_reg_sim(DC_SEQ_REGS - 1, 0);
             
-            for (unsigned int j = 0; j < DC_TOTAL_REGS; j++) {
-                sim_sendf("0x%08X 0x%08X\n", base + j * 4, (dc_programs[i]->regs)[j]);
+            for (unsigned int j = 0; j < DC_SEQ_REGS; j++) {
+                write_reg_sim(j, dc_programs[i]->seq_regs[j]);
             }
 
-        }
-
-    }
-
-    for (int i = 0; i < RF_CHANNELS; i++) {
-
-        if (rf_programs[i] != NULL) {
-
-            uint32_t base = (DC_CHANNELS + i) * page_size;
-
-            sim_sendf("0x%08X 0x%08X\n", base + (RF_TOTAL_REGS - 1) * 4, 0);
+            write_reg_sim(DC_SEQ_REGS + DC_CTRL_REGS - 1, 0);
             
-            for (unsigned int j = 0; j < RF_TOTAL_REGS; j++) {
-                sim_sendf("0x%08X 0x%08X\n", base + j * 4, (rf_programs[i]->regs)[j]);
+            for (unsigned int j = 0; j < DC_CTRL_REGS; j++) {
+                if (dc_programs[i]->ctrl_regs[j] != -1)
+                    write_reg_sim(DC_SEQ_REGS + j, dc_programs[i]->ctrl_regs[j];
             }
 
         }
@@ -360,14 +245,14 @@ static int write_sim(dc_program_t *dc_programs[],
 
     if (launch != NULL) {
 
-        uint32_t base = (DC_CHANNELS + RF_CHANNELS) * page_size;
+        uint32_t base = DC_SEQ_REGS + DC_CTRL_REGS + 15;
 
-        sim_sendf("0x%08X 0x%08X\n", base + (LAUNCH_TOTAL_REGS - 1) * 4, 0);
+        write_reg_sim(base + LAUNCH_TOTAL_REGS - 1, 0);
         
-        sim_sendf("0x%08X 0x%08X\n", base, launch->dc_chmask);
-        sim_sendf("0x%08X 0x%08X\n", base + 4, launch->rf_chmask);
-        sim_sendf("0x%08X 0x%08X\n", base + 8, launch->li_chmask);
-        sim_sendf("0x%08X 0x%08X\n", base + (LAUNCH_TOTAL_REGS - 1) * 4, 1);
+        write_reg_sim(base, launch->dc_chmask);
+        write_reg_sim(base + 1, launch->rf_chmask);
+        write_reg_sim(base + 2, launch->li_chmask);
+        write_reg_sim(base + LAUNCH_TOTAL_REGS - 1, 1);
 
     }
 
@@ -387,8 +272,12 @@ static void write_bin(dc_program_t *dc_programs[],
 
             fprintf(op, "dc%d\n", i);
 
-            for (int j = 0; j < DC_TOTAL_REGS; j++) {
-                fprintf(op, "0x%08X\n", (dc_programs[i]->regs)[j]);
+            for (int j = 0; j < DC_SEQ_REGS; j++) {
+                fprintf(op, "0x%08X\n", (dc_programs[i]->seq_regs)[j]);
+            }
+
+            for (int j = 0; j < DC_CTRL_REGS; j++) {
+                fprintf(op, "0x%08X\n", (dc_programs[i]->ctrl_regs)[j]);
             }
 
             fprintf(op, "\n");
@@ -402,8 +291,12 @@ static void write_bin(dc_program_t *dc_programs[],
 
             fprintf(op, "rf%d\n", i);
 
-            for (int j = 0; j < RF_TOTAL_REGS; j++) {
-                fprintf(op, "0x%08X\n", (rf_programs[i]->regs)[j]);
+            for (int j = 0; j < RF_SEQ_REGS; j++) {
+                fprintf(op, "0x%08X\n", (rf_programs[i]->seq_regs)[j]);
+            }
+
+            for (int j = 0; j < RF_CTRL_REGS; j++) {
+                fprintf(op, "0x%08X\n", (rf_programs[i]->ctrl_regs)[j]);
             }
 
             fprintf(op, "\n");
@@ -455,7 +348,7 @@ int main(int argc, char *argv[]) {
     }
 
     if (file == NULL) {
-        fprintf(stderr, "Usage: %s [-f file] [-o out] [-s mkfifo] [-x]\n", argv[0]);
+        fprintf(stderr, "Usage: %s [-f file] [-o out] [-s] [-x]\n", argv[0]);
         return 1;
     }
 

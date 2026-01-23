@@ -1,6 +1,8 @@
 `default_nettype none
 `timescale 1ns / 1ps
 `include "include/dc.svh"
+`include "include/li.svh"
+`include "include/launch.svh"
 
 import "DPI-C" function int cmd_open(input string path);
 import "DPI-C" function int cmd_accept_poll(input int timeout_ms);
@@ -12,6 +14,10 @@ module simulator;
     localparam NUM_DC_CHANNEL=24;
     localparam NUM_LI_CHANNEL=1;
 
+    localparam TOTAL_REGS=DC_SEQ_REGS+DC_CTRL_REGS+
+                          LI_SEQ_REGS+LI_CTRL_REGS+
+                          LCH_TOTAL_REGS;
+
     /********************
     * signal declaration
     ********************/
@@ -21,8 +27,7 @@ module simulator;
 
     // data transmit
     logic w_rx, w_tx;
-    logic [0:DC_SEQ_REGS-1][31:0] w_dc_seq_regs;
-    logic [0:DC_CTRL_REGS-1][31:0] w_dc_ctrl_regs;
+    logic [0:TOTAL_REGS-1][31:0] w_regs;
 
     // dc spi bus
     logic [0:NUM_DC_CHANNEL-1] w_dc_sclk_bus;
@@ -37,20 +42,25 @@ module simulator;
     logic [DC_DAC_WIDTH-1:0] vdc_digital [NUM_DC_CHANNEL];
     real vdc [NUM_DC_CHANNEL];
 
-    // launch axi bus
-    logic [0:LCH_TOTAL_REGS-1][31:0] w_lch_regs;
-
     /********************************
     * top-level module instantiation
     ********************************/
 
-    dc_regs REGS (
+    uart_regs #(
+        .DATA_WIDTH(8),
+        .RX_FIFO_DEPTH(8),
+        .RX_FIFO_AF_DEPTH(6),
+        .RX_FIFO_AE_DEPTH(2),
+        .TX_FIFO_DEPTH(8),
+        .TX_FIFO_AF_DEPTH(6),
+        .TX_FIFO_AE_DEPTH(2),
+        .NUM_REGS(TOTAL_REGS)
+    ) REGS (
         .i_clk(w_clk),
         .i_rst(w_rst),
         .i_rx(w_rx),
         .o_tx(w_tx),
-        .o_seq_regs(o_seq_regs),
-        .o_ctrl_regs(o_ctrl_regs)
+        .o_regs(w_regs)
     );
 
 
@@ -62,7 +72,7 @@ module simulator;
         .i_rst(w_rst),
 
         // dc
-        .i_dc_regs(w_dc_regs),
+        .i_regs(w_regs),
 
         .o_dc_sclk_bus(w_dc_sclk_bus),
         .o_dc_mosi_bus(w_dc_mosi_bus),
@@ -70,8 +80,9 @@ module simulator;
         .o_dc_cs_n_bus(w_dc_cs_n_bus),
         .o_dc_ldac_n_bus(w_dc_ldac_n_bus),
 
-        // launch
-        .i_lch_regs(w_lch_regs)
+        .o_dc_armed_bus(),
+        .o_dc_empty_bus(w_dc_empty_bus),
+        .o_dc_eop_bus()
     );
 
     /*******************
@@ -94,11 +105,6 @@ module simulator;
             .VDIGITAL(vdc_digital[i]),
             .VOUT(vdc[i])
         );
-
-        assign w_dc_empty_bus[i] = DCLI.DC_GEN[i].DC.CORE.i_empty && 
-            DCLI.DC_GEN[i].DC.CORE.i.r_bubble &&
-            DCLI.DC_GEN[i].DC.CORE.s.r_spi_done && 
-            DCLI.DC_GEN[i].DC.CORE.h.r_cycles_left == 'd0;
 
     end
 
@@ -147,7 +153,7 @@ module simulator;
         @(negedge w_tx);
         #(bit_duration / 2);
         assert (w_tx == 1'b0)
-        else $fatal("At %0.3f ns: o_tx didn't hold start bit as 0", $realtime);
+        else $fatal(1, "At %0.3f ns: o_tx didn't hold start bit as 0", $realtime);
 
         // data bits
         for (int i = 0; i < 8; i++) begin
@@ -158,7 +164,7 @@ module simulator;
         // stop bit == 1
         #bit_duration;
         assert (w_tx == 1'b1)
-        else $fatal("At %0.3f ns: o_tx didn't hold stop bit as 1", $realtime);
+        else $fatal(1, "At %0.3f ns: o_tx didn't hold stop bit as 1", $realtime);
 
         pc_received.push_back(rx_data);
 

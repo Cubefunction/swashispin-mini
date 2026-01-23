@@ -1,9 +1,10 @@
 # Top-level variables
 SIM := vcs
-SRC := lib/fifo.sv lib/baudx16_generator.sv lib/receiver.sv lib/transmitter.sv lib/uart.sv src/uart_regs.sv
+# SRC := lib/fifo.sv lib/baudx16_generator.sv lib/receiver.sv lib/transmitter.sv lib/uart.sv src/uart_regs.sv
+SRC := $(wildcard src/*.sv) lib/fifo.sv lib/baudx16_generator.sv lib/receiver.sv lib/transmitter.sv lib/uart.sv lib/ad5791.sv
 
-TB ?= uart_regs_tb
-TB_SRC := tb/$(TB).sv
+TB ?= simulator2
+TB_SRC := sim/$(TB).sv
 TARGET := $(TB)
 CORES := $(shell getconf _NPROCESSORS_ONLN)
 
