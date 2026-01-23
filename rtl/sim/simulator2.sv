@@ -1,7 +1,6 @@
 `default_nettype none
 `timescale 1ns / 1ps
 `include "include/dc.svh"
-//`include "include/rf.svh"
 
 import "DPI-C" function int cmd_open(input string path);
 import "DPI-C" function int cmd_accept_poll(input int timeout_ms);
@@ -22,7 +21,8 @@ module simulator;
 
     // data transmit
     logic w_rx, w_tx;
-    logic [0:DC_TOTAL_REGS-1][31:0] w_dc_regs;
+    logic [0:DC_SEQ_REGS-1][31:0] w_dc_seq_regs;
+    logic [0:DC_CTRL_REGS-1][31:0] w_dc_ctrl_regs;
 
     // dc spi bus
     logic [0:NUM_DC_CHANNEL-1] w_dc_sclk_bus;
@@ -44,9 +44,16 @@ module simulator;
     * top-level module instantiation
     ********************************/
 
-    // uart receiver here
+    dc_regs REGS (
+        .i_clk(w_clk),
+        .i_rst(w_rst),
+        .i_rx(w_rx),
+        .o_tx(w_tx),
+        .o_seq_regs(o_seq_regs),
+        .o_ctrl_regs(o_ctrl_regs)
+    );
 
-    // dc/li channels
+
     dcli #(
         .NUM_DC_CHANNEL(NUM_DC_CHANNEL),
         .NUM_LI_CHANNEL(NUM_LI_CHANNEL)

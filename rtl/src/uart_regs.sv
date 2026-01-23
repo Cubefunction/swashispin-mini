@@ -1,26 +1,32 @@
+//`default_nettype none
 `timescale 1ns / 1ps
+`include "include/dc.svh"
+`include "include/li.svh"
+`include "include/launch.svh"
 
-module dc_regs 
+module uart_regs 
    #(parameter DATA_WIDTH=8,
-     parameter RX_FIFO_DEPTH=20,
-     parameter RX_FIFO_AF_DEPTH=16,
-     parameter RX_FIFO_AE_DEPTH=4,
-     parameter TX_FIFO_DEPTH=20,
-     parameter TX_FIFO_AF_DEPTH=16,
-     parameter TX_FIFO_AE_DEPTH=4,
-     parameter NUM_SEQ_REGS=32,
-     parameter NUM_CTRL_REGS=4)
+     parameter RX_FIFO_DEPTH=8,
+     parameter RX_FIFO_AF_DEPTH=6,
+     parameter RX_FIFO_AE_DEPTH=2,
+     parameter TX_FIFO_DEPTH=8,
+     parameter TX_FIFO_AF_DEPTH=6,
+     parameter TX_FIFO_AE_DEPTH=2,
+     parameter NUM_REGS=54)
     (input  logic i_clk,
      input  logic i_rst,
 
      input  logic i_rx,
      output logic o_tx,
 
-     output logic [0:NUM_SEQ_REGS-1][31:0] o_seq_regs,
-     output logic [0:NUM_CTRL_REGS-1][31:0] o_ctrl_regs);
+     output logic [0:NUM_REGS-1][31:0] o_regs);
 
     logic [6:0] w_addr;
-    logic [31:0] r_regs [NUM_SEQ_REGS+NUM_CTRL_REGS];
+    logic [31:0] r_regs [NUM_REGS];
+
+    for (genvar i = 0; i < NUM_REGS; i++) begin : O_REGS_GEN
+        assign o_regs[i] = r_regs[i];
+    end
 
     /******
     * uart
@@ -96,7 +102,7 @@ module dc_regs
             r_wr_data <= {r_wr_data[23:0], w_rxq_data};
     end
 
-    for (genvar i = 0; i < NUM_SEQ_REGS + NUM_CTRL_REGS; i++) begin : WR_GEN
+    for (genvar i = 0; i < NUM_REGS; i++) begin : WR_GEN
         always_ff @(posedge i_clk) begin
             if (i_rst)
                 r_regs[i] <= 32'hDEADC0DE;
@@ -217,14 +223,6 @@ module dc_regs
 
         endcase
 
-    end
-    
-    for (genvar i = 0; i < NUM_SEQ_REGS; i++) begin : SEQ_REG_GEN
-        assign o_seq_regs[i] = r_regs[i];
-    end
-
-    for (genvar i = 0; i < NUM_CTRL_REGS; i++) begin : CTRL_REG_GEN
-        assign o_ctrl_regs[i] = r_regs[NUM_SEQ_REGS + i];
     end
 
 endmodule

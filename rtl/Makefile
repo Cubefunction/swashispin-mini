@@ -1,9 +1,9 @@
 # Top-level variables
 SIM := vcs
-SRC := $(wildcard src/dc*) $(wildcard src/launch*) src/sequencer.sv sim/cmd_dpi.c lib/axil_slave_regs.sv  lib/ad5791.sv
+SRC := lib/fifo.sv lib/baudx16_generator.sv lib/receiver.sv lib/transmitter.sv lib/uart.sv src/uart_regs.sv
 
-TB ?= simulator2
-TB_SRC := sim/$(TB).sv
+TB ?= uart_regs_tb
+TB_SRC := tb/$(TB).sv
 TARGET := $(TB)
 CORES := $(shell getconf _NPROCESSORS_ONLN)
 

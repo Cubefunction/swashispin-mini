@@ -1,10 +1,8 @@
 `timescale 1ns/1ps
 
-module dc_regs_tb;
+module uart_regs_tb;
 
-    localparam NUM_SEQ_REGS = 32;
-    localparam NUM_CTRL_REGS = 4;
-    localparam N_REGS = NUM_SEQ_REGS + NUM_CTRL_REGS;
+    localparam N_REGS = 54;
     localparam NUM_ITERS = 50000;
 
     localparam BAUDRATE = 921600;
@@ -16,11 +14,7 @@ module dc_regs_tb;
     logic w_rx  = 1'b1;
     logic w_tx;
 
-    logic [0:NUM_SEQ_REGS+NUM_CTRL_REGS-1][31:0] w_regs;
-    logic [0:NUM_SEQ_REGS-1][31:0] w_seq_regs;
-    logic [0:NUM_CTRL_REGS-1][31:0] w_ctrl_regs;
-
-    assign w_regs = {w_seq_regs, w_ctrl_regs};
+    logic [0:N_REGS-1][31:0] w_regs;
 
     byte unsigned pc_received[$];
     logic [7:0] rx_data;
@@ -34,16 +28,21 @@ module dc_regs_tb;
     logic [31:0] r_exp;
     int unsigned r_j;
 
-    dc_regs #(
-        .NUM_SEQ_REGS(NUM_SEQ_REGS),
-        .NUM_CTRL_REGS(NUM_CTRL_REGS)
+    uart_regs #(
+        .DATA_WIDTH(8),
+        .RX_FIFO_DEPTH(8),
+        .RX_FIFO_AF_DEPTH(6),
+        .RX_FIFO_AE_DEPTH(2),
+        .TX_FIFO_DEPTH(8),
+        .TX_FIFO_AF_DEPTH(6),
+        .TX_FIFO_AE_DEPTH(2),
+        .NUM_REGS(N_REGS)
     ) DUT (
         .i_clk(w_clk),
         .i_rst(w_rst),
         .i_rx(w_rx),
         .o_tx(w_tx),
-        .o_seq_regs(w_seq_regs),
-        .o_ctrl_regs(w_ctrl_regs)
+        .o_regs(w_regs)
     );
 
     initial begin
