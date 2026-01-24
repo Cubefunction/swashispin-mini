@@ -61,7 +61,7 @@ module uart_regs
         .o_rxq_data (w_rxq_data),
         .o_rxq_empty(w_rxq_empty),
         .o_rxq_ae   (),
-        .o_rxq_full (w_rxq_full),
+        .o_rxq_full (),
         .o_rxq_af   (),
 
         .i_enq_txq  (w_enq_txq),

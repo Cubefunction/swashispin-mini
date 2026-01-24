@@ -1,6 +1,5 @@
 #include "common.h"
 #include "dc.h"
-#include "rf.h"
 #include "launch.h"
 #include "simcli.h"
 #include <ctype.h>
@@ -19,7 +18,6 @@ static int line_empty(char *s) {
 
 static int assemble(FILE *fp, 
                     dc_program_t *dc_programs[],
-                    rf_program_t *rf_programs[],
                     launch_t **launch) {
 
     char line[256] = {0};
@@ -174,7 +172,6 @@ static uint64_t program_t(dc_program_t *dc_programs[]) {
 
     uint64_t max_ns = 0;
     uint64_t cycle_ns = NS_PER_CYCLE;
-    double sample_ns = NS_PER_SAMPLE;
 
     for (int i = 0; i < DC_CHANNELS; i++) {
 
@@ -228,16 +225,20 @@ static int write_sim(dc_program_t *dc_programs[],
 
             write_reg_sim(DC_SEQ_REGS - 1, 0);
             
-            for (unsigned int j = 0; j < DC_SEQ_REGS; j++) {
+            for (unsigned int j = 0; j < DC_SEQ_REGS - 1; j++) {
                 write_reg_sim(j, dc_programs[i]->seq_regs[j]);
             }
 
+            write_reg_sim(DC_SEQ_REGS - 1, (1U << i));
+
             write_reg_sim(DC_SEQ_REGS + DC_CTRL_REGS - 1, 0);
             
-            for (unsigned int j = 0; j < DC_CTRL_REGS; j++) {
+            for (unsigned int j = 0; j < DC_CTRL_REGS - 1; j++) {
                 if (dc_programs[i]->ctrl_regs[j] != -1)
-                    write_reg_sim(DC_SEQ_REGS + j, dc_programs[i]->ctrl_regs[j];
+                    write_reg_sim(DC_SEQ_REGS + j, dc_programs[i]->ctrl_regs[j]);
             }
+
+            write_reg_sim(DC_SEQ_REGS + DC_CTRL_REGS - 1, (1U << i));
 
         }
 
@@ -256,13 +257,12 @@ static int write_sim(dc_program_t *dc_programs[],
 
     }
 
-    sim_sendf("run %lu\n", program_t(dc_programs, rf_programs) + 1000);
+    sim_sendf("run %lu\n", program_t(dc_programs) + 1000);
 
     return 0;
 }
 
 static void write_bin(dc_program_t *dc_programs[], 
-                      rf_program_t *rf_programs[],
                       launch_t *launch,
                       FILE *op) {
 
@@ -284,26 +284,6 @@ static void write_bin(dc_program_t *dc_programs[],
 
         }
     }
-
-    for (int i = 0; i < RF_CHANNELS; i++) {
-
-        if (rf_programs[i] != NULL) {
-
-            fprintf(op, "rf%d\n", i);
-
-            for (int j = 0; j < RF_SEQ_REGS; j++) {
-                fprintf(op, "0x%08X\n", (rf_programs[i]->seq_regs)[j]);
-            }
-
-            for (int j = 0; j < RF_CTRL_REGS; j++) {
-                fprintf(op, "0x%08X\n", (rf_programs[i]->ctrl_regs)[j]);
-            }
-
-            fprintf(op, "\n");
-
-        }
-    }
-
 
     if (launch != NULL) {
 
@@ -358,27 +338,22 @@ int main(int argc, char *argv[]) {
 
     FILE *fp = fopen(file, "r");
     dc_program_t *dc_programs[DC_CHANNELS] = {NULL};
-    rf_program_t *rf_programs[RF_CHANNELS] = {NULL};
     launch_t *launch = NULL;
-    assemble(fp, dc_programs, rf_programs, &launch);
+    assemble(fp, dc_programs, &launch);
 
     FILE *op = fopen(out, "w");
-    write_bin(dc_programs, rf_programs, launch, op);
-    printf("program t: %ld ns\n", program_t(dc_programs, rf_programs));
+    write_bin(dc_programs, launch, op);
+    printf("program t: %ld ns\n", program_t(dc_programs));
 
     if (sim) {
         printf("simulate\n");
-        write_sim(dc_programs, rf_programs, launch);
+        write_sim(dc_programs, launch);
     }
 
     if (exe) {
         for (int ch = 0; ch < DC_CHANNELS; ch++) {
             if (dc_programs[ch] != NULL)
                 dc_load_insns(ch, dc_programs[ch]);
-        }
-        for (int ch = 0; ch < RF_CHANNELS; ch++) {
-            if (rf_programs[ch] != NULL)
-                rf_load_insns(ch, rf_programs[ch]);
         }
         if (launch != NULL)
             launch_load(launch);
@@ -387,10 +362,6 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i < DC_CHANNELS; i++) {
         if (dc_programs[i] != NULL)
             free(dc_programs[i]);
-    }
-    for (int i = 0; i < RF_CHANNELS; i++) {
-        if (rf_programs[i] != NULL)
-            free(rf_programs[i]);
     }
     if (launch != NULL)
         free(launch);

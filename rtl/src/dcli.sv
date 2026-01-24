@@ -98,7 +98,7 @@ module dcli
         .i_regs(i_regs[LCH_START:LCH_END]),
 
         .i_dc_armed(w_dc_armed_bus),
-        .i_rf_armed(1'b1),
+        .i_rf_armed(1'b0),
         .i_li_armed(NUM_LI_CHANNEL'('h0)),
 
         .i_trigger(1'b1),
