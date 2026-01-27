@@ -1,5 +1,6 @@
 #include "common.h"
 #include "dc.h"
+#include "adc.h"
 #include "launch.h"
 #include "simcli.h"
 #include <ctype.h>
@@ -18,7 +19,8 @@ static int line_empty(char *s) {
 
 static int assemble(FILE *fp, 
                     dc_program_t *dc_programs[],
-                    launch_t **launch) {
+                    launch_t **launch,
+                    adc_config_t *adc_cfg) {
 
     char line[256] = {0};
 
@@ -27,6 +29,7 @@ static int assemble(FILE *fp,
         DC_CTRL,
         DC_REPEAT,
         DC_INSN,
+        ADC_CTRL, //adc
         LAUNCH
     } state_t;
 
@@ -43,13 +46,10 @@ static int assemble(FILE *fp,
             success = fgets(line, sizeof(line), fp);
             continue;
         }
-
+        uint32_t channel;
         switch (state) {
 
-            case PROGRAM:
-
-                uint32_t channel;
-
+            case PROGRAM:{
                 if (sscanf(line, ".program dc%u ", &channel)){
 
                     dc_programs[channel] = (dc_program_t *)calloc(1, sizeof(dc_program_t));
@@ -65,14 +65,18 @@ static int assemble(FILE *fp,
                     *launch = (launch_t *)calloc(1, sizeof(launch_t));
 
                     state = LAUNCH;
+                } else if (strncmp(line, ".adc_config", 11) == 0) {
+
+                    state = ADC_CTRL;
+                    success = fgets(line, sizeof(line), fp);
 
                 } else {
                     return -1;
                 }
 
                 break;
-
-            case DC_CTRL:
+            }
+            case DC_CTRL:{
 
                 int dc_dvsr;
                 int dc_cs_up_cycles;
@@ -104,8 +108,8 @@ static int assemble(FILE *fp,
                 }
 
                 break;
-
-            case DC_REPEAT:
+            }
+            case DC_REPEAT:{
 
                 uint32_t dc_repeat;
 
@@ -122,8 +126,8 @@ static int assemble(FILE *fp,
                 }
 
                 break;
-
-            case DC_INSN:
+            }
+            case DC_INSN:{
 
                 dc_insn_t dc_insn;
                 i = 0;
@@ -153,6 +157,22 @@ static int assemble(FILE *fp,
                 }
 
                 break;
+            }
+            case ADC_CTRL: {
+                char *p = line;
+                while (isspace((unsigned char)*p)) p++;
+
+                if (sscanf(p, ".adc_delay %uns", &adc_cfg->delay_ns) == 1) {
+                    success = fgets(line, sizeof(line), fp);
+                } else if (sscanf(p, ".adc_sample %uns", &adc_cfg->sample_ns) == 1) {
+                    success = fgets(line, sizeof(line), fp);
+                } else {
+                    adc_process_config(adc_cfg);
+                    state = PROGRAM;
+                }
+                break;
+            }
+
 
             case LAUNCH:
 
@@ -160,6 +180,8 @@ static int assemble(FILE *fp,
                 state = PROGRAM;
                 success = fgets(line, sizeof(line), fp);
                 break;
+            
+            
 
         }
     }
@@ -263,7 +285,7 @@ static int write_sim(dc_program_t *dc_programs[],
 }
 
 static void write_bin(dc_program_t *dc_programs[], 
-                      launch_t *launch,
+                      launch_t *launch,  adc_config_t *adc_cfg,
                       FILE *op) {
 
     for (int i = 0; i < DC_CHANNELS; i++) {
@@ -297,6 +319,15 @@ static void write_bin(dc_program_t *dc_programs[],
         fprintf(op, "\n");
 
     }
+
+        // ---- ADC config ----
+    if (adc_cfg != NULL) {
+        fprintf(op, "adc\n");
+        fprintf(op, "0x%08X\n", (uint32_t)adc_cfg->delay_ns);
+        fprintf(op, "0x%08X\n", (uint32_t)adc_cfg->sample_ns);
+        fprintf(op, "\n");
+    }
+
 }
 
 int main(int argc, char *argv[]) {
@@ -338,11 +369,12 @@ int main(int argc, char *argv[]) {
 
     FILE *fp = fopen(file, "r");
     dc_program_t *dc_programs[DC_CHANNELS] = {NULL};
+    adc_config_t adc_cfg = {0};
     launch_t *launch = NULL;
-    assemble(fp, dc_programs, &launch);
+    assemble(fp, dc_programs, &launch, &adc_cfg);
 
     FILE *op = fopen(out, "w");
-    write_bin(dc_programs, launch, op);
+    write_bin(dc_programs, launch, &adc_cfg, op);
     printf("program t: %ld ns\n", program_t(dc_programs));
 
     if (sim) {
