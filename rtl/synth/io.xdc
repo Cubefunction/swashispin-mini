@@ -90,7 +90,7 @@ set_property -dict {PACKAGE_PIN T13 IOSTANDARD LVCMOS33} [get_ports o_b16]
 set_property -dict {PACKAGE_PIN R13 IOSTANDARD LVCMOS33} [get_ports o_b18]
 
 set_property -dict {PACKAGE_PIN R8 IOSTANDARD LVCMOS33} [get_ports o_b21]
-set_property -dict {PACKAGE_PIN R9 IOSTANDARD LVCMOS33} [get_ports o_b23]
+set_property -dict {PACKAGE_PIN P8 IOSTANDARD LVCMOS33} [get_ports o_b23]
 set_property -dict {PACKAGE_PIN T15 IOSTANDARD LVCMOS33} [get_ports o_b22]
 set_property -dict {PACKAGE_PIN T14 IOSTANDARD LVCMOS33} [get_ports o_b24]
 

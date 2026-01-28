@@ -1,7 +1,6 @@
 // `default_nettype none
 `timescale 1ns / 1ps
 `include "dc.svh"
-`include "rf.svh"
 
 module io
    #(parameter NUM_DC_CHANNEL=24,

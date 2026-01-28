@@ -1,8 +1,8 @@
 // `default_nettype none
 `timescale 1ns / 1ps
-`include "include/dc.svh"
-`include "include/li.svh"
-`include "include/launch.svh"
+`include "dc.svh"
+`include "li.svh"
+`include "launch.svh"
 
 module top
     (input  logic i_clk, i_rst_n,
@@ -73,8 +73,8 @@ module top
         .NUM_DC_CHANNEL(NUM_DC_CHANNEL),
         .NUM_LI_CHANNEL(NUM_LI_CHANNEL)
     ) DCLI (
-        .i_clk(w_clk),
-        .i_rst(w_rst),
+        .i_clk(i_clk),
+        .i_rst(!i_rst_n),
 
         .i_regs(w_regs),
 

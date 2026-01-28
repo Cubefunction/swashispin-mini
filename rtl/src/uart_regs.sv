@@ -1,8 +1,8 @@
 //`default_nettype none
 `timescale 1ns / 1ps
-`include "include/dc.svh"
-`include "include/li.svh"
-`include "include/launch.svh"
+`include "dc.svh"
+`include "li.svh"
+`include "launch.svh"
 
 module uart_regs 
    #(parameter DATA_WIDTH=8,
