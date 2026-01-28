@@ -323,9 +323,15 @@ static void write_bin(dc_program_t *dc_programs[],
         // ---- ADC config ----
     if (adc_cfg != NULL) {
         fprintf(op, "adc\n");
-        fprintf(op, "0x%08X\n", (uint32_t)adc_cfg->delay_ns);
-        fprintf(op, "0x%08X\n", (uint32_t)adc_cfg->sample_ns);
+
+        fprintf(op, "0x%08X\n", ADC_OP_DELAY_NS);
+        fprintf(op, "0x%08X\n", adc_cfg->delay_ns);
+
+        fprintf(op, "0x%08X\n", ADC_OP_SAMPLE_NS);
+        fprintf(op, "0x%08X\n", adc_cfg->sample_ns);
+
         fprintf(op, "\n");
+
     }
 
 }
