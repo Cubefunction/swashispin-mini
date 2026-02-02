@@ -339,7 +339,7 @@ static void write_bin(dc_program_t *dc_programs[],
 
 }
 
-static int setup_uart(int fd, spped_t speed) {
+static int setup_uart(int fd, speed_t speed) {
 
     struct termios tty;
 
@@ -388,10 +388,11 @@ int main(int argc, char *argv[]) {
     char *out = NULL;
     int sim = 0;
     int exe = 0;
-    int uart = 0;
-    char *ttyf = NULL;
+    int read = 0;
+    char *xdev = NULL;
+    char *rdev = NULL;
 
-    while ((opt = getopt(argc, argv, "f:o:sx")) != -1) {
+    while ((opt = getopt(argc, argv, "f:o:x:r:s")) != -1) {
         switch (opt) {
             case 'f':
                 file = optarg;
@@ -399,23 +400,25 @@ int main(int argc, char *argv[]) {
             case 'o':
                 out = optarg;
                 break;
+            case 'x':
+                exe = 1;
+                xdev = optarg;
+                break;
+            case 'r':
+                read = 1;
+                rdev = optarg;
+                break;
             case 's':
                 sim = 1;
                 break;
-            case 'x':
-                exe = 1;
-                break;
-            case 'u':
-                uart = 1;
-                ttyf = optarg;
             default:
-                fprintf(stderr, "Usage: %s [-f file] [-o out] [-s] [-x]\n", argv[0]);
+                fprintf(stderr, "Usage: %s [-f file] [-o out] [-s] [-x xdev] [-r rdev]\n", argv[0]);
                 return 1;
         }
     }
 
-    if (file == NULL) {
-        fprintf(stderr, "Usage: %s [-f file] [-o out] [-s] [-x] [-u]\n", argv[0]);
+    if (file == NULL && !read) {
+        fprintf(stderr, "Usage: %s [-f file] [-o out] [-s] [-x xdev] [-r rdev]\n", argv[0]);
         return 1;
     }
 
@@ -423,15 +426,19 @@ int main(int argc, char *argv[]) {
         out = "out";
     }
 
-    FILE *fp = fopen(file, "r");
+    FILE *fp = NULL;
+    FILE *op = NULL;
     dc_program_t *dc_programs[DC_CHANNELS] = {NULL};
     adc_config_t adc_cfg = {0};
     launch_t *launch = NULL;
-    assemble(fp, dc_programs, &launch, &adc_cfg);
 
-    FILE *op = fopen(out, "w");
-    write_bin(dc_programs, launch, &adc_cfg, op);
-    printf("program t: %ld ns\n", program_t(dc_programs));
+    if (file != NULL) {
+        fp = fopen(file, "r");
+        assemble(fp, dc_programs, &launch, &adc_cfg);
+        op = fopen(out, "w");
+        write_bin(dc_programs, launch, &adc_cfg, op);
+        printf("program t: %ld ns\n", program_t(dc_programs));
+    }
 
     if (sim) {
         printf("simulate\n");
@@ -439,34 +446,36 @@ int main(int argc, char *argv[]) {
     }
 
     if (exe) {
+        int xfd = open(xdev, O_RDWR | O_NOCTTY | O_SYNC);
+        if (xfd < 0) {
+            fprintf(stderr, "open(%s) failed: %s\n", xdev, strerror(errno));
+            return 1;
+        }
+        if (setup_uart(xfd, B921600) != 0) {
+            close(xfd);
+            return 1;
+        }
         for (int ch = 0; ch < DC_CHANNELS; ch++) {
             if (dc_programs[ch] != NULL)
-                dc_load_insns(ch, dc_programs[ch]);
+                dc_write_regs(ch, dc_programs[ch], xfd);
         }
         if (launch != NULL)
             launch_load(launch);
+        close(xfd);
     }
 
-    if (uart) {
-
-        int uartfd = open(ttyf, O_RDWR | O_NOCTTY | O_SYNC);
-
-        if (fd < 0) {
-            fprintf(stderr, "open(%s) failed: %s\n", ttyf, strerror(errno));
+    if (read) {
+        int rfd = open(rdev, O_RDWR | O_NOCTTY | O_SYNC);
+        if (rfd < 0) {
+            fprintf(stderr, "open(%s) failed: %s\n", rdev, strerror(errno));
             return 1;
         }
-
-        if (setup_uart(fd, B921600) != 0) {
-            close(uartfd);
+        if (setup_uart(rfd, B921600) != 0) {
+            close(rfd);
             return 1;
         }
-
-        for (int ch = 0; ch < DC_CHANNELS; ch++) {
-            if (dc_programs[ch] != NULL)
-                dc_uart_insns(ch, dc_programs[ch]);
-        }
-        if (launch != NULL)
-            launch_load(launch);
+        dc_read_regs(rfd);
+        close(rfd);
     }
 
     for (int i = 0; i < DC_CHANNELS; i++) {

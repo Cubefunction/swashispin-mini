@@ -3,10 +3,6 @@
 
 #include <stdint.h>
 
-#define NUM_DC_CHANNEL 24
-#define INSN_PER_DC_CHANNEL 10
-#define REG_PER_DC_CHANNEL 32
-
 #define DC_DAC_BITS 20
 #define DC_CYCLE_BITS 30
 #define DC_MAX_HOLD_CYCLES ((1u << DC_CYCLE_BITS) - 1u)
@@ -17,7 +13,7 @@
 
 #define VMAX 10.0
 #define VMIN -10.0
-#define NS_PER_CYCLE 4
+#define NS_PER_CYCLE 10
 #define DC_MAX_HOLD_NS (DC_MAX_HOLD_CYCLES * NS_PER_CYCLE)
 #define MAX_DT (NS_PER_CYCLE * DC_MAX_HOLD_CYCLES)
 
@@ -98,6 +94,7 @@ typedef struct {
 int dc_parse_insn(char *line, dc_insn_t *insn);
 void dc_assemble(dc_program_t *prog);
 int dc_load_insns(int dc_channel, dc_program_t *dc_program);
-int dc_uart_insns(int dc_channel, dc_program_t *dc_program, int uartfd);
+int dc_write_regs(int dc_channel, dc_program_t *dc_program, int uartfd);
+int dc_read_regs(int uartfd);
 
 #endif

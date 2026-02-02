@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <sys/mman.h>
+#include <inttypes.h>
 
 
 static uint32_t dc_v2dac_code(double v) {
@@ -471,49 +472,56 @@ void dc_assemble(dc_program_t *prog) {
 
 }
 
-int dc_load_insns(int dc_channel, dc_program_t *dc_program) {
+int dc_write_regs(int dc_channel, dc_program_t *dc_program, int uartfd) {
 
     assert(0 <= dc_channel && dc_channel <= RF_UIO_BASE - DC_UIO_BASE - 1);
 
-    char uio_path[32];
-    snprintf(uio_path, sizeof(uio_path), "/dev/uio%d", DC_UIO_BASE + dc_channel);
+    uint8_t tx[6] = {0, 0, 0, 0, 0, 0};
 
-    int dc_fd = open(uio_path, O_RDWR);
-    if (dc_fd < 0) {
-        fprintf(stderr, "open(\"%s\") failed: %s\n", uio_path, strerror(errno));
-        return 1;
+    ssize_t n;
+
+    for (int i = 0; i < DC_CTRL_REGS - 1; i++) {
+
+        if (dc_program->ctrl_regs[i] != -1) {
+            tx[0] = (uint8_t)(DC_SEQ_REGS + i);
+            tx[1] = (uint8_t)(((uint32_t)dc_program->ctrl_regs[i]) >> 24);
+            tx[2] = (uint8_t)(((uint32_t)dc_program->ctrl_regs[i]) >> 16);
+            tx[3] = (uint8_t)(((uint32_t)dc_program->ctrl_regs[i]) >> 8);
+            tx[4] = (uint8_t)(((uint32_t)dc_program->ctrl_regs[i]));
+        }
+
+
+        n = write(uartfd, tx, sizeof(tx) - 1);
+        if (n < 0) {
+            perror("write error");
+            return -1;
+        }
+
     }
 
-    void *dc_va = mmap(NULL, 0x1000, PROT_READ | PROT_WRITE, MAP_SHARED, dc_fd, 0);
-    if (dc_va == MAP_FAILED) {
-        fprintf(stderr, "mmap() %s failed: %s\n", uio_path, strerror(errno));
-        close(dc_fd);
-        return 1;
+    tx[0] = (uint8_t)(DC_SEQ_REGS + DC_CTRL_REGS - 1);
+    tx[1] = 0;
+    tx[2] = 0;
+    tx[3] = 0;
+    tx[4] = 0;
+
+    n = write(uartfd, tx, sizeof(tx) - 1);
+    if (n < 0) {
+        perror("write error");
+        return -1;
     }
 
-    volatile uint32_t *dc_base = (volatile uint32_t *)((char *)dc_va);
-    *(dc_base + DC_SEQ_REGS - 1) = 0;
-    for (int i = 0; i < DC_SEQ_REGS; i++) {
-        *(dc_base + i) = dc_program->seq_regs[i];
+    tx[0] = (uint8_t)(DC_SEQ_REGS + DC_CTRL_REGS - 1);
+    tx[1] = (uint8_t)(((uint32_t)dc_program->ctrl_regs[DC_CTRL_REGS - 1]) >> 24);
+    tx[2] = (uint8_t)(((uint32_t)dc_program->ctrl_regs[DC_CTRL_REGS - 1]) >> 16);
+    tx[3] = (uint8_t)(((uint32_t)dc_program->ctrl_regs[DC_CTRL_REGS - 1]) >> 8);
+    tx[4] = (uint8_t)(((uint32_t)dc_program->ctrl_regs[DC_CTRL_REGS - 1]));
+
+    n = write(uartfd, tx, sizeof(tx) - 1);
+    if (n < 0) {
+        perror("write error");
+        return -1;
     }
-    *(dc_base + DC_SEQ_REGS + DC_CTRL_REGS - 1) = 0;
-    for (int i = 0; i < DC_CTRL_REGS; i++) {
-        if (dc_program->ctrl_regs[i] != -1)
-            *(dc_base + DC_SEQ_REGS + i) = dc_program->ctrl_regs[i];
-    }
-
-#if EXE
-    __asm__ __volatile__("dsb oshst" ::: "memory");
-#endif
-
-    return 0;
-}
-
-int dc_uart_insns(int dc_channel, dc_program_t *dc_program, int uartfd) {
-
-    assert(0 <= dc_channel && dc_channel <= RF_UIO_BASE - DC_UIO_BASE - 1);
-
-    char tx[6] = {0, 0, 0, 0, 0, 0};
 
     for (int i = 0; i < DC_SEQ_REGS - 1; i++) {
 
@@ -523,12 +531,24 @@ int dc_uart_insns(int dc_channel, dc_program_t *dc_program, int uartfd) {
         tx[3] = (uint8_t)(dc_program->seq_regs[i] >> 8);
         tx[4] = (uint8_t)(dc_program->seq_regs[i]);
 
-        ssize_t n = write(uartfd, tx, sizeof(tx) - 1);
+        n = write(uartfd, tx, sizeof(tx) - 1);
         if (n < 0) {
             perror("write error");
             return -1;
         }
 
+    }
+
+    tx[0] = (uint8_t)(DC_SEQ_REGS - 1);
+    tx[1] = 0;
+    tx[2] = 0;
+    tx[3] = 0;
+    tx[4] = 0;
+
+    n = write(uartfd, tx, sizeof(tx) - 1);
+    if (n < 0) {
+        perror("write error");
+        return -1;
     }
 
     tx[0] = (uint8_t)(DC_SEQ_REGS - 1);
@@ -538,10 +558,48 @@ int dc_uart_insns(int dc_channel, dc_program_t *dc_program, int uartfd) {
     tx[3] = (uint8_t)(chsel >> 8);
     tx[4] = (uint8_t)(chsel);
 
-    ssize_t n = write(uartfd, tx, sizeof(tx) - 1);
+    n = write(uartfd, tx, sizeof(tx) - 1);
     if (n < 0) {
         perror("write error");
         return -1;
+    }
+
+    return 0;
+
+}
+
+int dc_read_regs(int uartfd) {
+
+    uint8_t tx[2] = {0, 0};
+    uint8_t rx[5] = {0, 0, 0, 0, 0};
+
+    uint32_t regval = 0;
+
+    for (int i = 0; i < DC_SEQ_REGS + DC_CTRL_REGS; i++) {
+
+        tx[0] = ((uint8_t)i) | (0b10000000);
+        ssize_t n = write(uartfd, tx, sizeof(tx) - 1);
+        if (n < 0) {
+            perror("write error");
+            return -1;
+        }
+
+        ssize_t r = read(uartfd, rx, sizeof(rx) - 1);
+        if (r < 0) {
+            perror("read error");
+            return -1;
+        } else if (r == 0) {
+            printf("read timeout (no data)\n");
+            return -1;
+        } else {
+            regval |= ((uint32_t)rx[0]) << 24;
+            regval |= ((uint32_t)rx[1]) << 16;
+            regval |= ((uint32_t)rx[2]) << 8;
+            regval |= ((uint32_t)rx[3]);
+            printf("0x%08" PRIX32 "\n", regval);
+            regval = 0;
+        }
+
     }
 
     return 0;
