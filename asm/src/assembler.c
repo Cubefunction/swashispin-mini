@@ -10,6 +10,9 @@
 #include <assert.h>
 #include <math.h>
 #include <string.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <termios.h>
 
 static int line_empty(char *s) {
     while (isspace((unsigned char)*s))
@@ -336,6 +339,48 @@ static void write_bin(dc_program_t *dc_programs[],
 
 }
 
+static int setup_uart(int fd, spped_t speed) {
+
+    struct termios tty;
+
+    if (tcgetattr(fd, &tty) != 0) {
+        perror("tcgetattr");
+        return -1;
+    }
+
+    // Set baud rate
+    cfsetispeed(&tty, speed);
+    cfsetospeed(&tty, speed);
+
+    // 8N1, no flow control
+    tty.c_cflag = (tty.c_cflag & ~CSIZE) | CS8; // 8-bit chars
+    tty.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP
+                   | INLCR | IGNCR | ICRNL | IXON | IXOFF | IXANY);
+    tty.c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN);
+    tty.c_oflag &= ~OPOST;
+
+    tty.c_cflag |= (CLOCAL | CREAD);            // ignore modem controls, enable reading
+    tty.c_cflag &= ~(PARENB | PARODD);          // no parity
+    tty.c_cflag &= ~CSTOPB;                     // 1 stop bit
+    tty.c_cflag &= ~CRTSCTS;                    // no HW flow control
+
+    // Read timeout behavior:
+    // VMIN=0, VTIME=10 => read returns immediately with what’s available,
+    // or waits up to 1.0s (10 deciseconds) for at least 1 byte.
+    tty.c_cc[VMIN]  = 0;
+    tty.c_cc[VTIME] = 10;
+
+    if (tcsetattr(fd, TCSANOW, &tty) != 0) {
+        perror("tcsetattr");
+        return -1;
+    }
+
+    // Flush any pending data
+    tcflush(fd, TCIOFLUSH);
+    return 0;
+
+}
+
 int main(int argc, char *argv[]) {
 
     int opt;
@@ -343,6 +388,8 @@ int main(int argc, char *argv[]) {
     char *out = NULL;
     int sim = 0;
     int exe = 0;
+    int uart = 0;
+    char *ttyf = NULL;
 
     while ((opt = getopt(argc, argv, "f:o:sx")) != -1) {
         switch (opt) {
@@ -358,6 +405,9 @@ int main(int argc, char *argv[]) {
             case 'x':
                 exe = 1;
                 break;
+            case 'u':
+                uart = 1;
+                ttyf = optarg;
             default:
                 fprintf(stderr, "Usage: %s [-f file] [-o out] [-s] [-x]\n", argv[0]);
                 return 1;
@@ -365,7 +415,7 @@ int main(int argc, char *argv[]) {
     }
 
     if (file == NULL) {
-        fprintf(stderr, "Usage: %s [-f file] [-o out] [-s] [-x]\n", argv[0]);
+        fprintf(stderr, "Usage: %s [-f file] [-o out] [-s] [-x] [-u]\n", argv[0]);
         return 1;
     }
 
@@ -392,6 +442,28 @@ int main(int argc, char *argv[]) {
         for (int ch = 0; ch < DC_CHANNELS; ch++) {
             if (dc_programs[ch] != NULL)
                 dc_load_insns(ch, dc_programs[ch]);
+        }
+        if (launch != NULL)
+            launch_load(launch);
+    }
+
+    if (uart) {
+
+        int uartfd = open(ttyf, O_RDWR | O_NOCTTY | O_SYNC);
+
+        if (fd < 0) {
+            fprintf(stderr, "open(%s) failed: %s\n", ttyf, strerror(errno));
+            return 1;
+        }
+
+        if (setup_uart(fd, B921600) != 0) {
+            close(uartfd);
+            return 1;
+        }
+
+        for (int ch = 0; ch < DC_CHANNELS; ch++) {
+            if (dc_programs[ch] != NULL)
+                dc_uart_insns(ch, dc_programs[ch]);
         }
         if (launch != NULL)
             launch_load(launch);

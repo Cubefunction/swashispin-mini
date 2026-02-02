@@ -21,7 +21,7 @@
 #define DC_MAX_HOLD_NS (DC_MAX_HOLD_CYCLES * NS_PER_CYCLE)
 #define MAX_DT (NS_PER_CYCLE * DC_MAX_HOLD_CYCLES)
 
-#define DC_DEPTH 10
+#define DC_DEPTH 4
 #define DC_SEQ_REGS ((DC_DEPTH * DC_REG_PER_INSN) + 2)
 #define DC_CTRL_REGS 4
 
@@ -98,5 +98,6 @@ typedef struct {
 int dc_parse_insn(char *line, dc_insn_t *insn);
 void dc_assemble(dc_program_t *prog);
 int dc_load_insns(int dc_channel, dc_program_t *dc_program);
+int dc_uart_insns(int dc_channel, dc_program_t *dc_program, int uartfd);
 
 #endif

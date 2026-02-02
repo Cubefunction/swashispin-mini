@@ -509,3 +509,42 @@ int dc_load_insns(int dc_channel, dc_program_t *dc_program) {
     return 0;
 }
 
+int dc_uart_insns(int dc_channel, dc_program_t *dc_program, int uartfd) {
+
+    assert(0 <= dc_channel && dc_channel <= RF_UIO_BASE - DC_UIO_BASE - 1);
+
+    char tx[6] = {0, 0, 0, 0, 0, 0};
+
+    for (int i = 0; i < DC_SEQ_REGS - 1; i++) {
+
+        tx[0] = (uint8_t)i;
+        tx[1] = (uint8_t)(dc_program->seq_regs[i] >> 24);
+        tx[2] = (uint8_t)(dc_program->seq_regs[i] >> 16);
+        tx[3] = (uint8_t)(dc_program->seq_regs[i] >> 8);
+        tx[4] = (uint8_t)(dc_program->seq_regs[i]);
+
+        ssize_t n = write(uartfd, tx, sizeof(tx) - 1);
+        if (n < 0) {
+            perror("write error");
+            return -1;
+        }
+
+    }
+
+    tx[0] = (uint8_t)(DC_SEQ_REGS - 1);
+    uint32_t chsel = 1U << dc_channel;
+    tx[1] = (uint8_t)(chsel >> 24);
+    tx[2] = (uint8_t)(chsel >> 16);
+    tx[3] = (uint8_t)(chsel >> 8);
+    tx[4] = (uint8_t)(chsel);
+
+    ssize_t n = write(uartfd, tx, sizeof(tx) - 1);
+    if (n < 0) {
+        perror("write error");
+        return -1;
+    }
+
+    return 0;
+
+}
+
