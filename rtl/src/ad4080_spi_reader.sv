@@ -1,3 +1,4 @@
+`timescale 1ns / 1ps
 module ad4080_spi_reader #(
     // 100MHz
     parameter CNV_HIG_CNT = 5,      // CNV=50ns
@@ -69,20 +70,22 @@ module ad4080_spi_reader #(
                 end
 
                 T_READ: begin
-                    //  SCLK_HALF_CNT 
-                    if (sclk_cnt >= SCLK_HALF_CNT) begin
+                    if (sclk_cnt >= SCLK_HALF_CNT - 1) begin
                         sclk_cnt <= 0;
                         adc_sclk <= ~adc_sclk;
                         
-                        if (adc_sclk == 0) begin 
+                        if (adc_sclk == 1'b0) begin 
                             shift_reg <= {shift_reg[18:0], adc_sdo};
+                        end else begin
                             if (bit_cnt >= 19) begin
                                 state <= T_DONE;
                             end else begin
                                 bit_cnt <= bit_cnt + 1'b1;
                             end
                         end
-                    end else sclk_cnt <= sclk_cnt + 1'b1;
+                    end else begin
+                        sclk_cnt <= sclk_cnt + 1'b1;
+                    end
                 end
 
                 T_DONE: begin
