@@ -6,7 +6,7 @@ module adc_to_ddr3 #(
     parameter integer AXI_DATA_WIDTH = 128,
     parameter [27:0]  BASE_ADDR      = 28'h0000000
 )(
-    // Global Clock and Reset (From MIG ui_clk)
+    // Global Clock and Reset 
     input  logic          clk,
     input  logic          rst_n,
     input  logic          init_calib_complete,
@@ -15,7 +15,7 @@ module adc_to_ddr3 #(
     input  logic [ADC_WIDTH-1:0] adc_data,
     input  logic                 adc_valid,
 
-    // AXI4 Master Interface (Connect directly to MIG s_axi_xxx)
+    // AXI4 Master 
     // Write Address Channel
     output logic [3:0]           m_axi_awid,
     output logic [27:0]          m_axi_awaddr,
@@ -49,7 +49,7 @@ module adc_to_ddr3 #(
     logic                      master_wr_done;
     logic                      master_wr_ready;
 
-    // --- 1. Data Width Converter (20 to 128 bit) ---
+    // ---  Data Width Converter (20 to 128 bit) ---
     data_width_converter #(
         .ADC_WIDTH(ADC_WIDTH),
         .AXI_WIDTH(AXI_DATA_WIDTH)
@@ -62,7 +62,7 @@ module adc_to_ddr3 #(
         .data_pkg_valid (packed_valid)
     );
 
-    // --- 2. Address Generation Logic ---
+    // ---  Address Generation Logic ---
     // Increment address only when a new 128-bit package is ready
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -72,7 +72,7 @@ module adc_to_ddr3 #(
         end
     end
 
-    // --- 3. Command FIFO (Buffers Write Addresses) ---
+    // --- Command FIFO (Buffers Write Addresses) ---
     fifo #(
         .WIDTH(AXI_ADDR_WIDTH),
         .DEPTH(16)
@@ -89,7 +89,7 @@ module adc_to_ddr3 #(
         .o_almost_empty ()
     );
 
-    // --- 4. AXI Master FSM ---
+    // --- AXI Master FSM ---
     axi_master_fsm #(
         .C_M_AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
         .C_M_AXI_DATA_WIDTH(AXI_DATA_WIDTH)
