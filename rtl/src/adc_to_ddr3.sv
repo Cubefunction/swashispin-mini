@@ -84,7 +84,7 @@ module adc_to_ddr3 #(
         .i_deq          (fifo_deq),
         .o_data         (cmd_addr_from_fifo),
         .o_empty        (fifo_empty),
-        .o_full         (/* Optional: Connect to error flag */),
+        .o_full         (),
         .o_almost_full  (),
         .o_almost_empty ()
     );
