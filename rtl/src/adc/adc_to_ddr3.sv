@@ -73,9 +73,8 @@ module adc_to_ddr3 #(
     end
     assign ui_rst = ui_rst_ff[1];
 
-    // ============================================================
-    // 3) Data Packer (ui_clk domain): 20b -> pad32 -> OUT_W (128b)
-    // ============================================================
+   
+    //  Data Packer (ui_clk domain): 20b -> pad32 -> OUT_W (128b)
     data_packer #(
         .SAMPLE_W(ADC_W),
         .OUT_W   (OUT_W)
