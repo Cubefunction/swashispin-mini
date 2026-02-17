@@ -8,6 +8,7 @@ module dc
      parameter SEQ_ITER_WIDTH=DC_SEQ_ITER_WIDTH,
      parameter CORE_ITER_WIDTH=DC_CORE_ITER_WIDTH,
      parameter SPI_DVSR_WIDTH=DC_SPI_DVSR_WIDTH,
+     parameter SPI_DELAY_WIDTH=DC_SPI_DELAY_WIDTH,
      parameter SPI_CS_UP_WIDTH=DC_SPI_CS_UP_WIDTH,
      parameter SPI_LDAC_WIDTH=DC_SPI_LDAC_WIDTH,
      parameter DEPTH=DC_DEPTH,
@@ -90,6 +91,7 @@ module dc
     dc_ctrl #(
         .CTRL_REGS(CTRL_REGS),
         .SPI_DVSR_WIDTH(SPI_DVSR_WIDTH),
+        .SPI_DELAY_WIDTH(SPI_DELAY_WIDTH),
         .SPI_CS_UP_WIDTH(SPI_CS_UP_WIDTH),
         .SPI_LDAC_WIDTH(SPI_LDAC_WIDTH)
     ) CTRL (

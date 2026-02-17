@@ -464,11 +464,13 @@ void dc_assemble(dc_program_t *prog) {
     prog->seq_regs[DC_SEQ_REGS-1] = 1;
 
     prog->ctrl_regs[0] = prog->ctrl.dvsr;
-    prog->ctrl_regs[1] = prog->ctrl.cs_up_cycles;
-    prog->ctrl_regs[2] = prog->ctrl.ldac_cycles;
+    prog->ctrl_regs[1] = prog->ctrl.delay_cycles;
+    prog->ctrl_regs[2] = prog->ctrl.cs_up_cycles;
+    prog->ctrl_regs[3] = prog->ctrl.ldac_cycles;
 
     prog->ctrl_regs[DC_CTRL_REGS-1] = (prog->ctrl_regs[0] != -1) ||
-        (prog->ctrl_regs[1] != -1) || (prog->ctrl_regs[2] != -1);
+        (prog->ctrl_regs[1] != -1) || (prog->ctrl_regs[2] != -1) ||
+        (prog->ctrl_regs[3] != -1);
 
 }
 
@@ -512,10 +514,11 @@ int dc_write_regs(int dc_channel, dc_program_t *dc_program, int uartfd) {
     }
 
     tx[0] = (uint8_t)(DC_SEQ_REGS + DC_CTRL_REGS - 1);
-    tx[1] = (uint8_t)(((uint32_t)dc_program->ctrl_regs[DC_CTRL_REGS - 1]) >> 24);
-    tx[2] = (uint8_t)(((uint32_t)dc_program->ctrl_regs[DC_CTRL_REGS - 1]) >> 16);
-    tx[3] = (uint8_t)(((uint32_t)dc_program->ctrl_regs[DC_CTRL_REGS - 1]) >> 8);
-    tx[4] = (uint8_t)(((uint32_t)dc_program->ctrl_regs[DC_CTRL_REGS - 1]));
+    uint32_t chsel = 1U << dc_channel;
+    tx[1] = (uint8_t)(chsel >> 24);
+    tx[2] = (uint8_t)(chsel >> 16);
+    tx[3] = (uint8_t)(chsel >> 8);
+    tx[4] = (uint8_t)(chsel);
 
     n = write(uartfd, tx, sizeof(tx) - 1);
     if (n < 0) {
@@ -552,7 +555,7 @@ int dc_write_regs(int dc_channel, dc_program_t *dc_program, int uartfd) {
     }
 
     tx[0] = (uint8_t)(DC_SEQ_REGS - 1);
-    uint32_t chsel = 1U << dc_channel;
+    chsel = 1U << dc_channel;
     tx[1] = (uint8_t)(chsel >> 24);
     tx[2] = (uint8_t)(chsel >> 16);
     tx[3] = (uint8_t)(chsel >> 8);

@@ -4,39 +4,16 @@
 `include "li.svh"
 `include "launch.svh"
 
-module top
-    (input  logic i_clk, i_rst_n,
+module top_nexysv
+    (input  logic i_clk,
+     input  logic i_btn_c,
     
      input  logic i_rx,
      output logic o_tx,
      
-     output logic o_a3, o_a5, o_a4, o_a6,
-                  o_a9, o_a11, o_a10, o_a12,
-                  o_a15, o_a17, o_a16, o_a18,
-                  o_a21, o_a23, o_a22, o_a24,
-                  o_a27, o_a29, o_a28, o_a30,
-                  o_a33, o_a35, o_a34, o_a36,
-                  o_a39, o_a41, o_a40, o_a42,
-                  o_a45, o_a47, o_a46, o_a48,
-                  o_a51, o_a53, o_a52, o_a54,
-                  o_a57, o_a59, o_a58, o_a60,
-                  o_a63, o_a65, o_a64, o_a66,
-                  o_a69, o_a71, o_a70, o_a72,
-                  o_a75, o_a77, o_a76, o_a78,
-
-     output logic o_b3, o_b5, o_b4, o_b6,
-                  o_b9, o_b11, o_b10, o_b12,
-                  o_b15, o_b17, o_b16, o_b18,
-                  o_b21, o_b23, o_b22, o_b24,
-                  o_b27, o_b29, o_b28, o_b30,
-                  o_b33, o_b35, o_b34, o_b36,
-                  o_b39, o_b41, o_b40, o_b42,
-                  o_b45, o_b47, o_b46, o_b48,
-                  o_b51, o_b53, o_b52, o_b54,
-                  o_b57, o_b59, o_b58, o_b60,
-                  o_b63, o_b65, o_b64, o_b66,
-                  o_b69, o_b71, o_b70, o_b72,
-                  o_b75, o_b77, o_b76, o_b78);
+     output logic [7:0] o_ja,
+     output logic [7:0] o_jb,
+     output logic [7:0] o_jc);
 
     localparam NUM_DC_CHANNEL=24;
     localparam NUM_LI_CHANNEL=1;
@@ -58,7 +35,7 @@ module top
         .NUM_REGS(TOTAL_REGS)
     ) REGS (
         .i_clk(i_clk),
-        .i_rst(!i_rst_n),
+        .i_rst(i_btn_c),
         .i_rx(i_rx),
         .o_tx(o_tx),
         .i_dvsr(11'd6),
@@ -75,7 +52,7 @@ module top
         .NUM_LI_CHANNEL(NUM_LI_CHANNEL)
     ) DCLI (
         .i_clk(i_clk),
-        .i_rst(!i_rst_n),
+        .i_rst(i_btn_c),
 
         .i_regs(w_regs),
 
@@ -90,7 +67,7 @@ module top
         .o_dc_eop_bus()
     );
 
-    io #(
+    io_nexysv #(
         .NUM_DC_CHANNEL(NUM_DC_CHANNEL),
         .NUM_LI_CHANNEL(NUM_LI_CHANNEL)
     ) IO (
@@ -101,9 +78,9 @@ module top
         .i_dc_clr_n(1'b1),
         .i_dc_rst_n(1'b1),
 
-        .i_aux_bus('h0),
-
-        .*
+        .o_ja(o_ja),
+        .o_jb(o_jb),
+        .o_jc(o_jc)
     );
 
 endmodule

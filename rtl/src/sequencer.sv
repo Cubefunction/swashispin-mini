@@ -39,8 +39,8 @@ module sequencer
                 r_sequence[i] <= 'h0;
             else if (w_new_sequence)
                 r_sequence[i] <= {i_regs[i*REG_PER_INSN:(i+1)*REG_PER_INSN-1]}[INSN_WIDTH-1:0];
-            // else if (!o_empty && i_next && r_iptr_modify == i)
-            //     r_sequence[i] <= i_insn_modified;
+            else if (!o_empty && i_next && r_iptr_modify == i)
+                r_sequence[i] <= i_insn_modified;
         end
     end
 

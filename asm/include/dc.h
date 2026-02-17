@@ -19,7 +19,7 @@
 
 #define DC_DEPTH 4
 #define DC_SEQ_REGS ((DC_DEPTH * DC_REG_PER_INSN) + 2)
-#define DC_CTRL_REGS 4
+#define DC_CTRL_REGS 5
 
 typedef struct {
     uint32_t iters;
@@ -34,6 +34,7 @@ typedef struct {
 
 typedef struct {
     int32_t dvsr;
+    int32_t delay_cycles;
     int32_t cs_up_cycles;
     int32_t ldac_cycles;
 } dc_ctrl_t;

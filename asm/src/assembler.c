@@ -57,6 +57,7 @@ static int assemble(FILE *fp,
 
                     dc_programs[channel] = (dc_program_t *)calloc(1, sizeof(dc_program_t));
                     dc_programs[channel]->ctrl.dvsr = -1;
+                    dc_programs[channel]->ctrl.delay_cycles = -1;
                     dc_programs[channel]->ctrl.cs_up_cycles = -1;
                     dc_programs[channel]->ctrl.ldac_cycles = -1;
 
@@ -82,6 +83,7 @@ static int assemble(FILE *fp,
             case DC_CTRL:{
 
                 int dc_dvsr;
+                int dc_delay_cycles;
                 int dc_cs_up_cycles;
                 int dc_ldac_cycles;
 
@@ -89,6 +91,13 @@ static int assemble(FILE *fp,
 
                     dc_programs[channel]->ctrl.dvsr = dc_dvsr;
                     assert(dc_dvsr > 0);
+
+                    success = fgets(line, sizeof(line), fp);
+
+                } else if (sscanf(line, ".dlay %d ", &dc_delay_cycles)) {
+
+                    dc_programs[channel]->ctrl.delay_cycles = dc_delay_cycles;
+                    assert(dc_delay_cycles > 0);
 
                     success = fgets(line, sizeof(line), fp);
 
@@ -380,6 +389,7 @@ static int setup_uart(int fd, speed_t speed) {
     return 0;
 
 }
+
 
 int main(int argc, char *argv[]) {
 
