@@ -19,6 +19,7 @@ module async_fifo_tb;
   logic             w_enq;
   logic             w_full;
   logic             w_almost_full;
+  logic [$clog2(DEPTH+1)-1:0] wr_data_count;
 
   logic             r_clk;
   logic             r_deq;
@@ -26,7 +27,7 @@ module async_fifo_tb;
   logic             r_empty;
   logic             r_almost_empty;
   logic             r_valid;
-
+  logic [$clog2(DEPTH+1)-1:0] rd_data_count;
   // Instantiate DUT
   async_fifo #(
     .WIDTH(WIDTH),
@@ -45,6 +46,8 @@ module async_fifo_tb;
     .r_data(r_data),
     .r_empty(r_empty),
     .r_almost_empty(r_almost_empty),
+    .wr_data_count(wr_data_count),
+    .rd_data_count(rd_data_count),
     .r_valid(r_valid)
   );
 
