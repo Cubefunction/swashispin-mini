@@ -96,8 +96,8 @@ module mig_axi4_driver#(
     input                  [1:0]   s_axi_rresp   , // Read response
     (* MARK_DEBUG="true" *) input           s_axi_rlast   , // Read last beat
     (* MARK_DEBUG="true" *) input           s_axi_rvalid  , // Read data valid
-    (* MARK_DEBUG="true" *) output          s_axi_rready  , // Read data ready
-)
+    (* MARK_DEBUG="true" *) output          s_axi_rready   // Read data ready
+);
     //==============================================================
     // FIFO control signals (Write FIFO)
     //==============================================================
@@ -172,7 +172,7 @@ module mig_axi4_driver#(
     reg  [15:0]             r_axi_rd_cnt   ; // counter for read burst length
     reg                     r_axi_rd_flag  ; // asserted high to start a read
 
-    wire                    ro_user_rd_finish;
+    reg                    ro_user_rd_finish;
     reg  [31:0]             r_rfifo_rd_cnt  ; // FIFO read counter (keep as-is)
 
     //---------------- AXI handshake helpers ----------------
@@ -245,12 +245,12 @@ module mig_axi4_driver#(
     assign s_axi_arqos    = 4'b0000;
 
 
-    async_fifo WR_FIFO(
+    async_fifo #(
         .WIDTH    (DDR3_WITH),
         .DEPTH    (WR_FIFO_DEPTH),  // must match what you want
         .AF_DEPTH (WR_FIFO_DEPTH-2),  // example: almost full threshold (tune)
         .AE_DEPTH (2)     // example: almost empty threshold (tune)
-    ) u_async_fifo (
+    ) WR_FIFO (
         .rst_n          (!i_rst),
 
         .w_clk          (i_user_wr_clk),            // input wire wr_clk
@@ -424,7 +424,7 @@ module mig_axi4_driver#(
         else if (r_axi_awvalid && s_axi_awready) begin
             r_axi_wvalid <= 1'b1;
         end
-        else if (r_axi_wvalid && s_axi_wre  ady &&
+        else if (r_axi_wvalid && s_axi_wready &&
                 (r_axi_wr_cnt == (P_WR_BURST_LEN - 1))) begin
             r_axi_wvalid <= 1'b0;
         end
@@ -466,12 +466,12 @@ module mig_axi4_driver#(
 //========================= RD_FIFO =========================
 // wr_clk: MIG ui_clk (i_clk domain)  -->I RDATA
 // rd_clk: user rd clk (i_user_rd_clk domain)  
-async_fifo RD_FIFO(
+async_fifo #(
         .WIDTH    (DDR3_WITH),
         .DEPTH    (RD_FIFO_DEPTH),            // Recommended depth for burst read buffering
         .AF_DEPTH (RD_FIFO_DEPTH-2),            // Almost full threshold
         .AE_DEPTH (2)               // Almost empty threshold
-    ) u_rd_fifo (
+    ) RD_FIFO (
         .rst_n          (!i_rst),
 
         .w_clk          (i_clk),            // input wire wr_clk (MIG ui_clk)
