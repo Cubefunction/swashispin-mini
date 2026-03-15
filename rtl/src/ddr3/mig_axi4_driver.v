@@ -102,9 +102,9 @@ module mig_axi4_driver#(
     // FIFO control signals (Write FIFO)
     //==============================================================
 
-    localparam int AXI_DATA_W = DDR3_WITH;          // 128 by default
-    localparam int AXI_STRB_W = AXI_DATA_W / 8;     // 16 when AXI_DATA_W=128
-    localparam int AXI_ADDR_W = 28;
+    localparam  AXI_DATA_W = DDR3_WITH;          // 128 by default
+    localparam  AXI_STRB_W = AXI_DATA_W / 8;     // 16 when AXI_DATA_W=128
+    localparam  AXI_ADDR_W = 28;
 
     wire                    w_wr_fifo_rd_en       ;
     wire [AXI_DATA_W-1:0]   w_wr_fifo_dout        ;
@@ -268,6 +268,8 @@ module mig_axi4_driver#(
         .r_valid        (),
         .rd_data_count  (w_wfifo_rd_data_count)    
     );
+
+    assign o_user_wr_fifo_ready = (w_wfifo_wr_data_count <= (WR_FIFO_DEPTH - P_WR_BURST_LEN));
     /*-------------------- write --------------------*/
 
     // Write state machine

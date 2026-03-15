@@ -1,0 +1,200 @@
+module ad9833_user_ctrl(
+
+    input  logic        clk,
+    input  logic        rst_n,
+
+    input  logic        cmd_valid,
+    input  logic [31:0] cmd_data,
+
+    output logic        spi_start,
+    output logic [15:0] spi_frame,
+    input  logic        spi_busy
+);
+
+parameter MCLK = 25_000_000;
+
+typedef enum logic [3:0] {
+    IDLE,
+    WAIT_FREQ,
+    WAIT_PHASE,
+    CALC_FREQ,
+    SEND_RESET,
+    SEND_FREQ_LSB,
+    SEND_FREQ_MSB,
+    SEND_PHASE,
+    SEND_CTRL
+} state_t;
+
+state_t state;
+
+logic [31:0] freq_hz;
+logic [11:0] phase_word;
+logic [1:0]  wave_sel;
+
+logic [27:0] freq_word;
+
+logic [63:0] mult_result;
+
+
+//------------------------------------------------
+// FSM
+//------------------------------------------------
+always_ff @(posedge clk or negedge rst_n) begin
+
+    if(!rst_n) begin
+
+        state      <= IDLE;
+
+        freq_hz    <= 0;
+        phase_word <= 0;
+        wave_sel   <= 0;
+        freq_word  <= 0;
+
+        spi_start  <= 0;
+        spi_frame  <= 0;
+
+    end
+    else begin
+
+        spi_start <= 0;
+
+        case(state)
+
+        //--------------------------------
+        // WAIT COMMAND
+        //--------------------------------
+        IDLE:
+        begin
+            if(cmd_valid && cmd_data == 32'hA55A0001)
+                state <= WAIT_FREQ;
+        end
+
+        //--------------------------------
+        // RECEIVE FREQ
+        //--------------------------------
+        WAIT_FREQ:
+        begin
+            if(cmd_valid) begin
+                freq_hz <= cmd_data;
+                state   <= WAIT_PHASE;
+            end
+        end
+
+        //--------------------------------
+        // RECEIVE PHASE + WAVE
+        //--------------------------------
+        WAIT_PHASE:
+        begin
+            if(cmd_valid) begin
+
+                phase_word <= cmd_data[27:16];
+                wave_sel   <= cmd_data[15:14];
+
+                state <= CALC_FREQ;
+
+            end
+        end
+
+        //--------------------------------
+        // CALCULATE DDS WORD
+        //--------------------------------
+        CALC_FREQ:
+        begin
+
+            mult_result <= freq_hz * 28'd268435456;
+            freq_word   <= mult_result / MCLK;
+
+            state <= SEND_RESET;
+
+        end
+
+        //--------------------------------
+        // SEND RESET
+        //--------------------------------
+        SEND_RESET:
+        begin
+            if(!spi_busy) begin
+
+                spi_frame <= 16'h2100;
+                spi_start <= 1;
+
+                state <= SEND_FREQ_LSB;
+
+            end
+        end
+
+        //--------------------------------
+        // SEND FREQ LSB
+        //--------------------------------
+        SEND_FREQ_LSB:
+        begin
+            if(!spi_busy) begin
+
+                spi_frame <= 16'h4000 | freq_word[13:0];
+                spi_start <= 1;
+
+                state <= SEND_FREQ_MSB;
+
+            end
+        end
+
+        //--------------------------------
+        // SEND FREQ MSB
+        //--------------------------------
+        SEND_FREQ_MSB:
+        begin
+            if(!spi_busy) begin
+
+                spi_frame <= 16'h4000 | freq_word[27:14];
+                spi_start <= 1;
+
+                state <= SEND_PHASE;
+
+            end
+        end
+
+        //--------------------------------
+        // SEND PHASE
+        //--------------------------------
+        SEND_PHASE:
+        begin
+            if(!spi_busy) begin
+
+                spi_frame <= 16'hC000 | phase_word;
+                spi_start <= 1;
+
+                state <= SEND_CTRL;
+
+            end
+        end
+
+        //--------------------------------
+        // SEND CONTROL
+        //--------------------------------
+        SEND_CTRL:
+        begin
+            if(!spi_busy) begin
+
+                unique case(wave_sel)
+
+                    2'b00: spi_frame <= 16'h2000; // sine
+                    2'b01: spi_frame <= 16'h2002; // triangle
+                    2'b10: spi_frame <= 16'h2028; // square
+
+                    default: spi_frame <= 16'h2000;
+
+                endcase
+
+                spi_start <= 1;
+
+                state <= IDLE;
+
+            end
+        end
+
+        endcase
+    end
+
+end
+
+endmodule

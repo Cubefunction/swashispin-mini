@@ -2,12 +2,8 @@
 
 module axi_top #(
     parameter       DDR3_WITH       = 128,
-    parameter       P_WR_BURST_LEN  = 8'd79, // AXI len = beats - 1 (80 beats)
-    parameter       P_WR_BURST_NUM  = 5    ,
-    parameter       P_RD_BURST_LEN  = 8'd79, // AXI len = beats - 1 (80 beats)
-    parameter       P_RD_BURST_NUM  = 5    ,
-    parameter       WR_FIFO_DEPTH   = 128  ,
-    parameter       RD_FIFO_DEPTH   = 128
+    parameter       WR_FIFO_DEPTH   = 64  ,
+    parameter       RD_FIFO_DEPTH   = 64
 )(
     // --- Physical DDR3 Interface (To Pins) ---
     output [13:0]   ddr3_addr,
@@ -28,23 +24,9 @@ module axi_top #(
 
     // --- System Signals ---
     input           sys_clk_i,      // 100MHz Input
-    input           sys_rst,        // Global Reset
+    input           sys_rst        // Global Reset
 
-    // --- User Interface (To your Logic) ---
-    input           i_user_wr_clk,
-    input           i_user_rd_clk,
-    input           i_user_wr_valid,
-    input  [27:0]   i_user_wr_addr_base,
-    output          o_user_wr_finish,
-    input           i_user_wr_data_valid,
-    input  [DDR3_WITH-1:0] i_user_wr_data,
-    output          o_user_wr_fifo_ready,
-
-    input           i_user_rd_valid,
-    input  [27:0]   i_user_rd_addr_base,
-    output          o_user_rd_finish,
-    output          o_user_rd_data_valid,
-    output [DDR3_WITH-1:0] o_user_rd_data
+    
 );
 
     // --- Internal Interconnect Signals ---
@@ -113,15 +95,15 @@ module axi_top #(
         .i_user_rd_clk        (ui_clk),
         .i_user_wr_valid      (i_user_wr_valid),
         .i_user_wr_addr_base  (i_user_wr_addr_base),
-        .o_user_wr_finish     (o_user_wr_finish),
+        .o_user_wr_finish     (w_user_wr_finish),
         .i_user_wr_data_valid (i_user_wr_data_valid),
         .i_user_wr_data       (i_user_wr_data),
-        .o_user_wr_fifo_ready (o_user_wr_fifo_ready),
+        .o_user_wr_fifo_ready (w_user_wr_fifo_ready),
         .i_user_rd_valid      (i_user_rd_valid),
         .i_user_rd_addr_base  (i_user_rd_addr_base),
-        .o_user_rd_finish     (o_user_rd_finish),
-        .o_user_rd_data_valid (o_user_rd_data_valid),
-        .o_user_rd_data       (o_user_rd_data),
+        .o_user_rd_finish     (w_user_rd_finish),
+        .o_user_rd_data_valid (w_user_rd_data_valid),
+        .o_user_rd_data       (w_user_rd_data),
 
         .init_calib_complete  (init_calib_complete),
         .mmcm_locked          (mmcm_locked),
@@ -244,16 +226,19 @@ module axi_top #(
         .s_axi_rready         (s_axi_rready),
 
         // System Clocks
-        .sys_clk_i            (sys_clk_i),
+        .sys_clk_i            (clk_ddr3_i),
         .clk_ref_i            (clk_ref_i),
-        .sys_rst              (sys_rst)
+        .sys_rst              (locked)
     );
-
+    
     wire clk_ref_i;
-      clk_wiz_0 instance_name
+    wire clk_ddr3_i;
+    
+    clk_wiz_0 u_wiz
    (
     // Clock out ports
     .clk_out1(clk_ref_i),     // output clk_out1
+    .clk_out2(clk_ddr3_i),     // output clk_out2
     // Status and control signals
     .reset(sys_rst), // input reset
     .locked(locked),       // output locked
@@ -261,4 +246,122 @@ module axi_top #(
     .clk_in1(sys_clk_i)      // input clk_in1
 );
 
+//---------------------test-----------------------------------
+// --- User Interface (To your Logic) ---
+    reg            i_user_wr_valid;
+    reg  [27:0]   i_user_wr_addr_base;
+    wire          w_user_wr_finish;
+    reg           i_user_wr_data_valid;
+    reg  [DDR3_WITH-1:0] i_user_wr_data;
+    wire          w_user_wr_fifo_ready;
+
+    reg           i_user_rd_valid;
+    reg  [27:0]   i_user_rd_addr_base;
+    wire          w_user_rd_finish;
+    wire          w_user_rd_data_valid;
+    wire [DDR3_WITH-1:0] w_user_rd_data;
+
+
+////////////////////////////////////////////////
+parameter
+    P_ST_IDLE   = 'd0 ,   
+    P_ST_WR     = 'd1 ,   
+    P_ST_WR_WAIT= 'd2 ,   
+    P_ST_RD     = 'd3 ,
+    P_ST_RD_WAIT= 'd4 ,
+    P_ST_FINISH = 'd5 ;
+
+parameter  P_WR_BURST_LEN = 'd16 ;
+parameter  P_WR_BURST_NUM = 'd5 ;
+parameter  P_RD_BURST_LEN = 'd16 ;
+parameter  P_RD_BURST_NUM = 'd5 ;
+
+parameter  P_WR_NUM = P_WR_BURST_LEN * P_WR_BURST_NUM ;
+
+reg [7:0]  r_state_current ;
+reg [7:0]  r_state_next    ;
+reg [7:0]  r_state_cnt     ;
+
+reg [15:0] r_write_num_cnt ;
+///////////////
+always@(posedge ui_clk ,posedge ui_clk_sync_rst)
+begin
+    if (ui_clk_sync_rst)
+        r_state_current <= P_ST_IDLE;
+    else
+        r_state_current <= r_state_next;
+end
+
+
+always @(*) begin
+    case(r_state_current)
+        P_ST_IDLE    : r_state_next <= init_calib_complete ? P_ST_WR      : P_ST_IDLE;
+        P_ST_WR      : r_state_next <= i_user_wr_valid     ? P_ST_WR_WAIT : P_ST_WR;   //发出写地址
+        P_ST_WR_WAIT : r_state_next <= w_user_wr_finish    ? P_ST_RD      : P_ST_WR_WAIT;
+        P_ST_RD      : r_state_next <= i_user_rd_valid     ? P_ST_RD_WAIT : P_ST_RD;
+        P_ST_RD_WAIT : r_state_next <= w_user_rd_finish    ? P_ST_FINISH  : P_ST_RD_WAIT;
+        P_ST_FINISH  : r_state_next <= P_ST_FINISH;
+        default      : r_state_next <= P_ST_IDLE;
+    endcase
+end
+
+always@(posedge ui_clk ,posedge ui_clk_sync_rst)
+begin
+    if(ui_clk_sync_rst) begin
+        i_user_wr_valid      <= 'd0;
+        i_user_wr_addr_base  <= 'd0;
+    end
+    else if(r_state_current==P_ST_WR && r_state_cnt=='d0) begin
+        i_user_wr_valid      <= 'd1;
+        i_user_wr_addr_base  <= 'd0;
+    end
+    else begin
+        i_user_wr_valid      <= 'd0;
+        i_user_wr_addr_base  <= 'd0;
+    end
+end
+
+
+always@(posedge ui_clk ,posedge ui_clk_sync_rst)
+begin
+    if(ui_clk_sync_rst) begin
+        i_user_wr_data_valid <= 'd0;
+        i_user_wr_data       <= 'd0;
+    end
+    else if(r_state_current==P_ST_WR_WAIT && w_user_wr_fifo_ready && r_write_num_cnt < (P_WR_NUM-1)) begin
+        i_user_wr_data_valid <= 'd1;
+        i_user_wr_data       <= i_user_wr_data + 'd1;
+    end
+    else begin
+        i_user_wr_data_valid <= 'd0;
+        i_user_wr_data       <= 'd0;
+    end
+end
+
+always@(posedge ui_clk ,posedge ui_clk_sync_rst)
+begin
+    if(ui_clk_sync_rst)
+        r_write_num_cnt <= 'd0;
+    else if(i_user_wr_data_valid && r_write_num_cnt <= (P_WR_NUM-1))
+        r_write_num_cnt <= r_write_num_cnt + 'd1;
+    else if(r_write_num_cnt == (P_WR_NUM))
+        r_write_num_cnt <= r_write_num_cnt;
+end
+
+
+always@(posedge ui_clk ,posedge ui_clk_sync_rst)
+begin
+    if(ui_clk_sync_rst) begin
+        i_user_rd_valid      <= 'd0;
+        i_user_rd_addr_base  <= 'd0;
+    end
+    else if(r_state_current==P_ST_RD && r_state_cnt=='d0) begin
+        i_user_rd_valid      <= 'd1;
+        i_user_rd_addr_base  <= 'd0;
+    end
+    else begin
+        i_user_rd_valid      <= 'd0;
+        i_user_rd_addr_base  <= 'd0;
+    end
+end
 endmodule
