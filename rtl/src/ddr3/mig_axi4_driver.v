@@ -108,8 +108,8 @@ module mig_axi4_driver#(
 
     wire                    w_wr_fifo_rd_en       ;
     wire [AXI_DATA_W-1:0]   w_wr_fifo_dout        ;
-    wire [7:0]              w_wfifo_rd_data_count ;
-    wire [7:0]              w_wfifo_wr_data_count ;
+    wire [$clog2(WR_FIFO_DEPTH+1)-1:0]              w_wfifo_rd_data_count ;
+    wire [$clog2(WR_FIFO_DEPTH+1)-1:0]              w_wfifo_wr_data_count ;
 
     //==============================================================
     // FIFO control signals (Read FIFO)
@@ -118,8 +118,8 @@ module mig_axi4_driver#(
     wire                    w_rd_fifo_wr_en       ;
     wire [AXI_DATA_W-1:0]   w_rd_fifo_din         ;
     wire                    w_rd_fifo_empty       ;
-    wire [7:0]              w_rfifo_rd_data_count ;
-    wire [7:0]              w_rfifo_wr_data_count ;
+    wire [$clog2(RD_FIFO_DEPTH+1)-1:0]              w_rfifo_rd_data_count ;
+    wire [$clog2(RD_FIFO_DEPTH+1)-1:0]              w_rfifo_wr_data_count ;
     wire                    w_rd_fifo_rd_en       ;
     wire [AXI_DATA_W-1:0]   w_rd_fifo_dout        ;
 
@@ -149,6 +149,7 @@ module mig_axi4_driver#(
     //================ Write data channel ==================================
     reg [AXI_DATA_W-1:0]  r_axi_wdata    ;
     reg                   r_axi_wlast    ;
+//    wire                   r_axi_wlast    ;
     reg [15:0]            r_axi_wr_cnt   ; // counter for beats in one write burst
     reg                   r_axi_wr_flag  ; // asserted high to start writing
     reg                   ro_user_wr_finish; // completion flag after write finishes
@@ -221,11 +222,27 @@ module mig_axi4_driver#(
     assign s_axi_awqos    = 4'b0000;
 
     //================ AXI Write Data Channel ====================
+    wire w_w_hs      = s_axi_wvalid && s_axi_wready;
+    wire w_last_beat = (r_axi_wr_cnt == (P_WR_BURST_LEN - 1));
+    wire w_can_load_next = (~r_axi_wvalid) || w_w_hs;
+    
+    wire w_fifo_pop = r_axi_wr_flag && w_can_load_next;  
+    assign w_wr_fifo_rd_en = w_fifo_pop;
+    
+    always @(posedge i_clk or posedge i_rst) begin
+    if (i_rst) begin
+        r_axi_wdata <= {AXI_DATA_W{1'b0}};
+    end
+    else if (w_wr_fifo_rd_en) begin
+        r_axi_wdata <= w_wr_fifo_dout;
+    end
+    end
+    
     assign s_axi_wstrb     = {16{1'b1}};            // 128-bit => 16 bytes
     assign s_axi_wvalid    = r_axi_wvalid;
-    assign s_axi_wdata     = w_wr_fifo_dout;
-    assign w_wr_fifo_rd_en = s_axi_wvalid & s_axi_wready;
-    assign s_axi_wlast     = r_axi_wlast;
+    assign s_axi_wdata     = r_axi_wdata;
+    //assign w_wr_fifo_rd_en = s_axi_wvalid & s_axi_wready;
+    //assign s_axi_wlast     = r_axi_wlast;
 
     //================ AXI Write Response Channel ================
     assign s_axi_bready    = 1'b1;
@@ -297,7 +314,7 @@ module mig_axi4_driver#(
                                 P_STATE_WR_IDLE;
 
             P_STATE_WR_WRITE :
-                r_wr_state_next <= s_axi_wvalid && r_axi_wr_cnt == (P_WR_BURST_LEN - 1) && 
+                r_wr_state_next <= s_axi_wvalid  && s_axi_wready && r_axi_wr_cnt == (P_WR_BURST_LEN - 1) && 
                                 r_wr_burst_num_cnt == (P_WR_BURST_NUM - 1) ?
                                 P_STATE_WR_IDLE : P_STATE_WR_WRITE;
 
@@ -434,18 +451,18 @@ module mig_axi4_driver#(
             r_axi_wvalid <= r_axi_wvalid;
     end
 
-    always @(posedge i_clk , posedge i_rst )
-    begin
-        if (i_rst)
-            r_axi_wlast <= 'd0;
-        else if (s_axi_wvalid && s_axi_wready && r_axi_wr_cnt==(P_WR_BURST_LEN - 1 ))
-            r_axi_wlast <= 'd0;
-        else if (s_axi_wvalid && s_axi_wready && r_axi_wr_cnt==(P_WR_BURST_LEN - 2 ))
-            r_axi_wlast <= 'd1;
-        else
-            r_axi_wlast <= 'd0;
-    end
-
+//     always @(posedge i_clk , posedge i_rst )
+//     begin
+//         if (i_rst)
+//             r_axi_wlast <= 'd0;
+//         else if (s_axi_wvalid && s_axi_wready && r_axi_wr_cnt==(P_WR_BURST_LEN - 1 ))
+//             r_axi_wlast <= 'd0;
+//         else if (s_axi_wvalid && s_axi_wready && r_axi_wr_cnt==(P_WR_BURST_LEN - 2 ))
+//             r_axi_wlast <= 'd1;
+//         else
+//             r_axi_wlast <= 'd0;
+//     end
+        assign s_axi_wlast = r_axi_wr_flag && (r_axi_wr_cnt == (P_WR_BURST_LEN - 1));
     // AXI4 Interface - Write Response Channel
     // After one burst and all write operations are complete, assert write finish signal
 
@@ -453,7 +470,7 @@ module mig_axi4_driver#(
     begin
         if (i_rst)
             ro_user_wr_finish <= 'd0;
-        else if (s_axi_wvalid &&
+        else if (s_axi_wvalid && s_axi_wready &&
                 r_axi_wr_cnt==(P_WR_BURST_LEN - 1) &&
                 r_wr_burst_num_cnt==(P_WR_BURST_NUM - 1))
             ro_user_wr_finish <= 'd1;
