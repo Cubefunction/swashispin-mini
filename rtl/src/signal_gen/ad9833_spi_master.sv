@@ -23,12 +23,29 @@ module ad9833_spi_master #(
     } state_t;
 
     state_t state, next_state;
-
     logic [FRAME_W-1:0] shift_reg;
     logic [$clog2(FRAME_W+1)-1:0] bit_cnt;
     logic [$clog2(CLK_DIV)-1:0]   clk_cnt;
     logic                         sclk_int;
-
+    
+    
+    localparam int DELAY_DONE = 2*CLK_DIV;
+    logic done_flag;
+    logic [$clog2(DELAY_DONE)-1:0] done_cnt;
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            done_cnt <= 'd0;
+            done_flag <= 'd0;
+        end
+        else if (done_cnt == DELAY_DONE - 1)begin
+            done_cnt <= 'd0;
+            done_flag <= 'd1;
+        end
+        else if (state == DONE)
+            done_cnt <= done_cnt + 1'b1;
+        else
+            done_flag <= 'd0;
+    end
 
     //------------------------------------------------
     // SPI clock output
@@ -74,7 +91,7 @@ module ad9833_spi_master #(
             // DONE
             //----------------------------------------
             DONE: begin
-                next_state = IDLE;
+                next_state = done_flag ? IDLE : DONE;
             end
 
             default: begin
@@ -100,7 +117,7 @@ module ad9833_spi_master #(
             done      <= 1'b0;
         end
         else begin
-            // 默认每拍拉低，确保 done 是单拍脉冲
+            
             done <= 1'b0;
 
             case (state)
@@ -170,9 +187,9 @@ module ad9833_spi_master #(
                     spi_fsync <= 1'b1;
                     spi_mosi  <= 1'b0;
                     sclk_int  <= 1'b1;
-                    busy      <= 1'b0;
+                    busy      <= done_flag ? 1'b0 : 1'b1;
                     clk_cnt   <= '0;
-                    done      <= 1'b1;   
+                    done      <= done_flag ? 1'b1 : 1'b0;   
                 end
 
                 default: begin
