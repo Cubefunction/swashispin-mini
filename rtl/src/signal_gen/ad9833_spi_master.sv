@@ -83,7 +83,7 @@ module ad9833_spi_master #(
             // TRANSFER
             //----------------------------------------
             TRANSFER: begin
-                if ((clk_cnt == CLK_DIV-1) && (sclk_int == 1'b1) && (bit_cnt == 1))
+                if ((clk_cnt == CLK_DIV-1) && (sclk_int == 1'b1) && (bit_cnt == 0))
                     next_state = DONE;
             end
 
