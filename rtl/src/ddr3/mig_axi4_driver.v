@@ -178,7 +178,7 @@ module mig_axi4_driver#(
 
     //---------------- AXI handshake helpers ----------------
     reg                     r_axi_rready   ;
-    reg                     r_axi_wvalid   ; // (name kept as in your code)
+    //reg                     r_axi_wvalid   ; // (name kept as in your code)
 
     //---------------- State encoding ----------------
     parameter P_STATE_WR_INIT  = 'd0; // DDR3 init / wait state
@@ -222,25 +222,28 @@ module mig_axi4_driver#(
     assign s_axi_awqos    = 4'b0000;
 
     //================ AXI Write Data Channel ====================
-    wire w_w_hs      = s_axi_wvalid && s_axi_wready;
-    wire w_last_beat = (r_axi_wr_cnt == (P_WR_BURST_LEN - 1));
-    wire w_can_load_next = (~r_axi_wvalid) || w_w_hs;
+//    wire w_w_hs      = s_axi_wvalid && s_axi_wready;
+//    wire w_last_beat = (r_axi_wr_cnt == (P_WR_BURST_LEN - 1));
+//    wire w_can_load_next = (~r_axi_wvalid) || w_w_hs;
     
-    wire w_fifo_pop = r_axi_wr_flag && w_can_load_next;  
-    assign w_wr_fifo_rd_en = w_fifo_pop;
+//    wire w_fifo_pop = r_axi_wr_flag && w_can_load_next;  
+//    assign w_wr_fifo_rd_en = w_fifo_pop;
     
-    always @(posedge i_clk or posedge i_rst) begin
-    if (i_rst) begin
-        r_axi_wdata <= {AXI_DATA_W{1'b0}};
-    end
-    else if (w_wr_fifo_rd_en) begin
-        r_axi_wdata <= w_wr_fifo_dout;
-    end
-    end
+//    always @(posedge i_clk or posedge i_rst) begin
+//    if (i_rst) begin
+//        r_axi_wdata <= {AXI_DATA_W{1'b0}};
+//    end
+//    else if (w_wr_fifo_rd_en) begin
+//        r_axi_wdata <= w_wr_fifo_dout;
+//    end
+//    end
     
-    assign s_axi_wstrb     = {16{1'b1}};            // 128-bit => 16 bytes
-    assign s_axi_wvalid    = r_axi_wvalid;
-    assign s_axi_wdata     = r_axi_wdata;
+    
+    wire w_wr_fifo_rvalid;
+    assign s_axi_wdata  = w_wr_fifo_dout;
+    assign s_axi_wstrb  = {AXI_STRB_W{1'b1}};
+    assign s_axi_wvalid = r_axi_wr_flag && w_wr_fifo_rvalid;
+    assign w_wr_fifo_rd_en = s_axi_wvalid && s_axi_wready;
     //assign w_wr_fifo_rd_en = s_axi_wvalid & s_axi_wready;
     //assign s_axi_wlast     = r_axi_wlast;
 
@@ -282,7 +285,7 @@ module mig_axi4_driver#(
         .r_data         (w_wr_fifo_dout),           // output wire [127:0] dout
         .r_empty        (),
         .r_almost_empty (),
-        .r_valid        (),
+        .r_valid        (w_wr_fifo_rvalid),
         .rd_data_count  (w_wfifo_rd_data_count)    
     );
 
@@ -435,21 +438,21 @@ module mig_axi4_driver#(
         end
     end
 
-    always @(posedge i_clk or posedge i_rst)
-    begin
-        if (i_rst) begin
-            r_axi_wvalid <= 1'b0;
-        end
-        else if (r_axi_awvalid && s_axi_awready) begin
-            r_axi_wvalid <= 1'b1;
-        end
-        else if (r_axi_wvalid && s_axi_wready &&
-                (r_axi_wr_cnt == (P_WR_BURST_LEN - 1))) begin
-            r_axi_wvalid <= 1'b0;
-        end
-        else
-            r_axi_wvalid <= r_axi_wvalid;
-    end
+//    always @(posedge i_clk or posedge i_rst)
+//    begin
+//        if (i_rst) begin
+//            r_axi_wvalid <= 1'b0;
+//        end
+//        else if (r_axi_awvalid && s_axi_awready) begin
+//            r_axi_wvalid <= 1'b1;
+//        end
+//        else if (r_axi_wvalid && s_axi_wready &&
+//                (r_axi_wr_cnt == (P_WR_BURST_LEN - 1))) begin
+//            r_axi_wvalid <= 1'b0;
+//        end
+//        else
+//            r_axi_wvalid <= r_axi_wvalid;
+//    end
 
 //     always @(posedge i_clk , posedge i_rst )
 //     begin
