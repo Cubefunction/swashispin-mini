@@ -1,117 +1,297 @@
+`timescale 1ns/1ps
+
 module ad4080_spi_master #(
-    parameter int DATA_WIDTH = 20,
-    parameter int CLK_DIV    = 2
+    parameter int ADDR_W  = 15,
+    parameter int DATA_W  = 8,
+    parameter int CLK_DIV = 10
 )(
-    input  logic        clk,
-    input  logic        rst_n,
-    input  logic        start,
-    
-    // 16-bit combined: [15]=R/W, [14:0]=Address
-    input  logic [15:0] ctrl_reg, 
-    input  logic [15:0] burst_cnt,  // Number of extra samples in the same CS frame
+    input  logic               clk,
+    input  logic               rst_n,
 
-    output logic [DATA_WIDTH-1:0] rx_data, 
-    output logic                  data_valid, 
-    output logic                  busy,
+    input  logic               start,
+    input  logic               rw,          // 1: read, 0: write
+    input  logic [ADDR_W-1:0]  reg_addr,
+    input  logic [DATA_W-1:0]  wr_data,
 
-    // SPI Physical Pins
-    output logic        spi_cs,
-    output logic        spi_sclk,
-    output logic        spi_mosi,
-    input  logic        spi_miso
+    input  logic               spi_sdo,     // AD4080 SDO
+
+    output logic               spi_sclk,
+    output logic               spi_cs_n,
+    output logic               spi_sdi,     // AD4080 SDI
+
+    output logic [DATA_W-1:0]  rd_data,
+    output logic               rd_valid,
+    output logic               done,
+    output logic               busy
 );
 
     typedef enum logic [1:0] {
-        IDLE, 
-        TX_INST,    // Transmit 16-bit Instruction
-        RX_DATA,    // Receive 20-bit Data
+        IDLE,
+        INST,
+        DATA,
         DONE
     } state_t;
 
-    state_t state;
-    logic [7:0]  div_cnt;
-    logic [5:0]  bit_cnt;
-    logic [5:0]  rx_cnt;
-    logic [31:0] shift_reg;
-    logic [15:0] b_cnt;
-    logic        sclk_en;
+    state_t state, next_state;
 
-    // --- SCLK Generation (SPI Mode 3) ---
+    localparam int INST_W     = 1 + ADDR_W;
+    localparam int DELAY_DONE =  1;
+
+    logic [INST_W-1:0]           inst_shift_reg;
+    logic [INST_W-1:0]           inst_word;
+    logic [DATA_W-1:0]           data_shift_reg;
+
+    logic [$clog2(INST_W+1)-1:0] inst_bit_cnt;
+    logic [$clog2(DATA_W+1)-1:0] data_bit_cnt;
+    logic [$clog2(CLK_DIV)-1:0]  clk_cnt;
+    logic                        sclk_int;
+
+    logic                        done_flag;
+    logic [$clog2(DELAY_DONE)-1:0] done_cnt;
+
+    assign inst_word = {rw, reg_addr};
+
+    //------------------------------------------------
+    // done delay counter
+    //------------------------------------------------
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            div_cnt  <= 0;
-            spi_sclk <= 1'b1; 
-        end else if (sclk_en) begin
-            if (div_cnt >= (CLK_DIV - 1)) begin
-                div_cnt  <= 0;
-                spi_sclk <= ~spi_sclk;
-            end else div_cnt <= div_cnt + 1;
-        end else begin
-            div_cnt  <= 0;
-            spi_sclk <= 1'b1;
+            done_cnt  <= 'd0;
+            done_flag <= 1'b0;
+        end
+        else if (state == DONE) begin
+            if (done_cnt == DELAY_DONE - 1) begin
+                done_cnt  <= 'd0;
+                done_flag <= 1'b1;
+            end
+            else begin
+                done_cnt  <= done_cnt + 1'b1;
+                done_flag <= 1'b0;
+            end
+        end
+        else begin
+            done_cnt  <= 'd0;
+            done_flag <= 1'b0;
         end
     end
 
-    // Timing Strobes
-    wire shift_edge  = (sclk_en && spi_sclk  && div_cnt == CLK_DIV - 1); 
-    wire sample_edge = (sclk_en && !spi_sclk && div_cnt == CLK_DIV - 1); 
+    //------------------------------------------------
+    // SPI clock output
+    //------------------------------------------------
+    assign spi_sclk = ((state == INST) || (state == DATA)) ? sclk_int : 1'b1;
 
-    // --- Simple State Machine ---
+    //------------------------------------------------
+    // 1) State register
+    //------------------------------------------------
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n)
+            state <= IDLE;
+        else
+            state <= next_state;
+    end
+
+    //------------------------------------------------
+    // 2) Next-state logic
+    //------------------------------------------------
+    always_comb begin
+        next_state = state;
+
+        case (state)
+            IDLE: begin
+                if (start)
+                    next_state = INST;
+            end
+
+            INST: begin
+                if ((clk_cnt == CLK_DIV-1) && (sclk_int == 1'b1) && (inst_bit_cnt == 0))
+                    next_state = DATA;
+            end
+
+            DATA: begin
+                if ((clk_cnt == CLK_DIV-1) && (sclk_int == 1'b1) && (data_bit_cnt == 0))
+                    next_state = DONE;
+            end
+
+            DONE: begin
+                next_state = done_flag ? IDLE : DONE;
+            end
+
+            default: begin
+                next_state = IDLE;
+            end
+        endcase
+    end
+
+    //------------------------------------------------
+    // 3) Datapath and output registers
+    //------------------------------------------------
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            state <= IDLE; spi_cs <= 1'b1; spi_mosi <= 1'b0;
-            data_valid <= 1'b0; busy <= 1'b0; sclk_en <= 1'b0;
-            rx_data <= 0; rx_cnt <= 0; b_cnt <= 0;
-        end else begin
+            inst_shift_reg <= '0;
+            data_shift_reg <= '0;
+            inst_bit_cnt   <= '0;
+            data_bit_cnt   <= '0;
+            clk_cnt        <= '0;
+            sclk_int       <= 1'b1;
+
+            spi_cs_n       <= 1'b1;
+            spi_sdi        <= 1'b0;
+
+            rd_data        <= '0;
+            rd_valid       <= 1'b0;
+            done           <= 1'b0;
+            busy           <= 1'b0;
+        end
+        else begin
+            done     <= 1'b0;
+            rd_valid <= 1'b0;
+
             case (state)
+
+                //----------------------------------------
+                // IDLE
+                //----------------------------------------
                 IDLE: begin
-                    busy <= 1'b0; data_valid <= 1'b0; sclk_en <= 1'b0;
+                    spi_cs_n     <= 1'b1;
+                    spi_sdi      <= 1'b0;
+                    sclk_int     <= 1'b1;
+                    clk_cnt      <= '0;
+                    inst_bit_cnt <= '0;
+                    data_bit_cnt <= '0;
+                    busy         <= 1'b0;
+
                     if (start) begin
-                        busy <= 1'b1;
-                        spi_cs <= 1'b0;
-                        sclk_en <= 1'b1;
-                        shift_reg <= {ctrl_reg, 16'h0}; // Load 16-bit instruction
-                        bit_cnt <= 15;
-                        b_cnt <= burst_cnt;
-                        state <= TX_INST;
+                        inst_shift_reg <= inst_word;
+                        data_shift_reg <= wr_data;
+
+                        spi_cs_n       <= 1'b0;
+                        spi_sdi        <= rw;      // 等价于 inst_word[INST_W-1]
+                        sclk_int       <= 1'b1;
+                        clk_cnt        <= '0;
+                        inst_bit_cnt   <= INST_W;
+                        data_bit_cnt   <= DATA_W;
+                        busy           <= 1'b1;
                     end
                 end
 
-                TX_INST: if (shift_edge) begin
-                    // Shift out 16 bits of [R/W + Address]
-                    spi_mosi <= shift_reg[31];
-                    shift_reg <= {shift_reg[30:0], 1'b0};
-                    if (bit_cnt == 0) begin
-                        state <= RX_DATA;
-                        rx_cnt <= 0;
-                    end else bit_cnt <= bit_cnt - 1;
-                end
+                //----------------------------------------
+                // INST
+                //----------------------------------------
+                INST: begin
+                    spi_cs_n <= 1'b0;
+                    busy     <= 1'b1;
 
-                RX_DATA: if (sample_edge) begin
-                    // Shift in 20 bits of ADC data
-                    rx_data <= {rx_data[DATA_WIDTH-2:0], spi_miso};
-                    if (rx_cnt == DATA_WIDTH - 1) begin
-                        data_valid <= 1'b1;
-                        rx_cnt <= 0;
-                        if (b_cnt == 0) begin
-                            state <= DONE;
-                            sclk_en <= 1'b0;
-                        end else begin
-                            b_cnt <= b_cnt - 1;
-                            // Continue in RX_DATA for burst
+                    if (clk_cnt == CLK_DIV-1) begin
+                        clk_cnt  <= '0;
+                        sclk_int <= ~sclk_int;
+
+                        //--------------------------------
+                        // Falling edge: one instruction bit done
+                        //--------------------------------
+                        if (sclk_int == 1'b1) begin
+                            if (inst_bit_cnt != 0)
+                                inst_bit_cnt <= inst_bit_cnt - 1'b1;
                         end
-                    end else begin
-                        data_valid <= 1'b0;
-                        rx_cnt <= rx_cnt + 1;
+                        //--------------------------------
+                        // Rising edge: prepare next instruction bit
+                        //--------------------------------
+                        else begin
+                            if (inst_bit_cnt > 1) begin
+                                inst_shift_reg <= {inst_shift_reg[INST_W-2:0], 1'b0};
+                                spi_sdi        <= inst_shift_reg[INST_W-2];
+                            end
+                            else begin
+                                if (!rw)
+                                    spi_sdi <= data_shift_reg[DATA_W-1];
+                                else
+                                    spi_sdi <= 1'b0;
+                            end
+                        end
                     end
-                end else data_valid <= 1'b0;
+                    else begin
+                        clk_cnt <= clk_cnt + 1'b1;
+                    end
+                end
 
+                //----------------------------------------
+                // DATA
+                //----------------------------------------
+                DATA: begin
+                    spi_cs_n <= 1'b0;
+                    busy     <= 1'b1;
+
+                    if (clk_cnt == CLK_DIV-1) begin
+                        clk_cnt  <= '0;
+                        sclk_int <= ~sclk_int;
+
+                        //--------------------------------
+                        // Falling edge
+                        //--------------------------------
+                        if (sclk_int == 1'b1) begin
+                            if (rw) begin
+                                if (data_bit_cnt != 0) begin
+                                    data_shift_reg <= {data_shift_reg[DATA_W-2:0], spi_sdo};
+                                    data_bit_cnt   <= data_bit_cnt - 1'b1;
+                                end
+                            end
+                            else begin
+                                if (data_bit_cnt != 0)
+                                    data_bit_cnt <= data_bit_cnt - 1'b1;
+                            end
+                        end
+                        //--------------------------------
+                        // Rising edge
+                        //--------------------------------
+                        else begin
+                            if (!rw) begin
+                                if (data_bit_cnt > 1) begin
+                                    data_shift_reg <= {data_shift_reg[DATA_W-2:0], 1'b0};
+                                    spi_sdi        <= data_shift_reg[DATA_W-2];
+                                end
+                                else begin
+                                    spi_sdi <= 1'b0;
+                                end
+                            end
+                            else begin
+                                spi_sdi <= 1'b0;
+                            end
+                        end
+                    end
+                    else begin
+                        clk_cnt <= clk_cnt + 1'b1;
+                    end
+                end
+
+                //----------------------------------------
+                // DONE
+                //----------------------------------------
                 DONE: begin
-                    spi_cs <= 1'b1;
-                    busy <= 1'b0;
-                    state <= IDLE;
+                    spi_cs_n <= 1'b1;
+                    spi_sdi  <= 1'b0;
+                    sclk_int <= 1'b1;
+                    clk_cnt  <= '0;
+                    busy     <= done_flag ? 1'b0 : 1'b1;
+                    done     <= done_flag ? 1'b1 : 1'b0;
+
+                    if (done_flag && rw) begin
+                        rd_data  <= data_shift_reg;
+                        rd_valid <= 1'b1;
+                    end
+                end
+
+                default: begin
+                    spi_cs_n <= 1'b1;
+                    spi_sdi  <= 1'b0;
+                    sclk_int <= 1'b1;
+                    busy     <= 1'b0;
+                    done     <= 1'b0;
+                    rd_valid <= 1'b0;
+                    clk_cnt  <= '0;
+                    inst_bit_cnt <= '0;
+                    data_bit_cnt <= '0;
                 end
             endcase
         end
     end
+
 endmodule
