@@ -74,16 +74,6 @@ module uart_top #(
         .o_spi_mosi       (o_spi_mosi)
     );
     
-    ila_0 u_ila (
-        .clk(i_clk),
-        .probe0(i_rx),
-        .probe1(o_spi_fsync),
-        .probe2(o_spi_sclk),
-        .probe3(o_spi_mosi),
-        .probe4(w_reg_cmd),
-        .probe5(w_reg_freq),
-        .probe6(w_reg_phase_ctrl),
-        .probe7(w_reg_control)
-    );
+
 
 endmodule
