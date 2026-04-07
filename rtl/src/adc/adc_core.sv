@@ -3,7 +3,8 @@
 module adc_core #(
     parameter int NUM_REGS      = 54,
     parameter int CTRL_REG_IDX  = 53,
-    parameter int ADDR_WIDTH    = $clog2(NUM_REGS)
+    parameter int ADDR_WIDTH    = $clog2(NUM_REGS),
+    parameter int BASE_ADDR     = 0
 )(
     input  logic i_clk,
     input  logic i_rst,
@@ -25,7 +26,7 @@ module adc_core #(
     // control
     //==================================================
     logic start_en;
-    assign start_en = i_all_regs[CTRL_REG_IDX][31];
+    assign start_en = i_all_regs[CTRL_REG_IDX] == 32'h8000_0000;
 
     //==================================================
     // IF stage regs

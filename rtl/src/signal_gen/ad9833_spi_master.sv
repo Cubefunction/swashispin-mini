@@ -166,7 +166,7 @@ module ad9833_spi_master #(
                         // Rising edge: prepare next bit
                         //--------------------------------
                         else begin
-                            if (bit_cnt > 1) begin
+                            if (bit_cnt >= 1) begin
                                 shift_reg <= {shift_reg[FRAME_W-2:0], 1'b0};
                                 spi_mosi  <= shift_reg[FRAME_W-2];
                             end
