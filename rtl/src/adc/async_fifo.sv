@@ -14,6 +14,8 @@ module async_fifo #(
     input  logic             w_enq,
     output logic             w_full,
     output logic             w_almost_full,
+    output logic [$clog2(DEPTH+1)-1:0] wr_data_count,
+    
 
     // Read side 
     input  logic             r_clk,
@@ -21,7 +23,8 @@ module async_fifo #(
     output logic [WIDTH-1:0] r_data,
     output logic             r_empty,
     output logic             r_almost_empty,
-    output logic             r_valid    
+    output logic             r_valid    ,
+    output logic [$clog2(DEPTH+1)-1:0] rd_data_count
 );
 
     localparam int ADDR_W = $clog2(DEPTH);
@@ -160,4 +163,7 @@ module async_fifo #(
         r_almost_empty = (r_level <= AE_DEPTH);
     end
 
+
+    assign wr_data_count = (w_bin - gray2bin(r_gray_w2));
+    assign rd_data_count = (gray2bin(w_gray_r2) - r_bin);
 endmodule

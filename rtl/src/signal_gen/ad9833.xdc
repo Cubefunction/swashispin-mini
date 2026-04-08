@@ -1,0 +1,17 @@
+create_clock -period 10.000 -name sys_clk [get_ports i_clk]
+set_property PACKAGE_PIN N14 [get_ports i_clk]
+set_property PACKAGE_PIN P15 [get_ports i_rx]
+set_property PACKAGE_PIN P16 [get_ports o_tx]
+set_property IOSTANDARD LVCMOS33 [get_ports i_clk]
+set_property IOSTANDARD LVCMOS33 [get_ports i_rst_n]
+set_property IOSTANDARD LVCMOS33 [get_ports i_rx]
+set_property IOSTANDARD LVCMOS33 [get_ports o_spi_fsync]
+set_property IOSTANDARD LVCMOS33 [get_ports o_spi_mosi]
+set_property IOSTANDARD LVCMOS33 [get_ports o_spi_sclk]
+set_property IOSTANDARD LVCMOS33 [get_ports o_tx]
+set_property PACKAGE_PIN P6 [get_ports i_rst_n]
+set_property PACKAGE_PIN N9 [get_ports o_spi_fsync]
+set_property PACKAGE_PIN P9 [get_ports o_spi_sclk]
+set_property PACKAGE_PIN M6 [get_ports o_spi_mosi]
+
+
