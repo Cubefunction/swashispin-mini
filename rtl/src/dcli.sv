@@ -85,8 +85,6 @@ module dcli
     * launch connections
     ********************/
 
-    logic w_trigger;
-
     launch #(
         .NUM_DC_CHANNEL(NUM_DC_CHANNEL),
         .NUM_RF_CHANNEL(1),

@@ -11,20 +11,6 @@
 #include <sys/mman.h>
 #include <inttypes.h>
 
-
-static uint32_t dc_v2dac_code(double v) {
-    const double span = (VMAX - VMIN);
-    const double fullscale   = (double)((1u << DC_DAC_BITS) - 1u);
-    if (span <= 0.0) return 0;
-
-    double norm   = (v - VMIN) / span;   // ideal 0..1
-    double scaled = norm * fullscale;           // ideal 0..(2^N-1)
-
-    if (scaled < 0.0)       scaled = 0.0;
-    if (scaled > fullscale) scaled = fullscale;
-    return (uint32_t)llround(scaled);
-}
-
 static uint32_t dc_t2cycles(uint32_t t_ns) {
     const uint64_t max_cycles = (1ull << DC_CYCLE_BITS) - 1ull;
     uint64_t cycles = ( (uint64_t)t_ns + (NS_PER_CYCLE/2) ) / (uint64_t)NS_PER_CYCLE;
@@ -57,7 +43,9 @@ static void dc_swp2insn(dc_swp_t *swp, dc_insn_t *insn) {
 
 static void dc_lvl2insn(dc_lvl_t *lvl, dc_insn_t *insn) {
 
-    uint32_t din = (1u << 20) | dc_v2dac_code(lvl->v);
+    uint32_t v_code = (uint32_t)real2twos(VMIN, VMAX, DC_DAC_BITS, lvl->v, 0);
+
+    uint32_t din = (1u << 20) | (v_code & ((1u << 20) - 1u));
 
     insn->iters = 0;
     insn->spi_din = din;
@@ -307,7 +295,7 @@ static int dc_parse_get(char *line, dc_get_t *get) {
     char paren[256] = {0};
 
     int got = sscanf(line, 
-        " set %3s ( %255[^)] )", 
+        " get %3s ( %255[^)] )", 
         r, paren);
 
     if (got < 1) return -1;

@@ -1,8 +1,5 @@
 //`default_nettype none
 `timescale 1ns / 1ps
-`include "dc.svh"
-`include "li.svh"
-`include "launch.svh"
 
 module uart_regs 
    #(parameter DATA_WIDTH=8,
@@ -18,6 +15,8 @@ module uart_regs
 
      input  logic i_rx,
      output logic o_tx,
+
+     input  logic [10:0] i_dvsr,
 
      output logic [0:NUM_REGS-1][31:0] o_regs);
 
@@ -42,12 +41,10 @@ module uart_regs
 
     uart #(
         .DATA_WIDTH(DATA_WIDTH),
-
-        .RX_FIFO_DEPTH   (RX_FIFO_DEPTH),
+        .RX_FIFO_DEPTH (RX_FIFO_DEPTH),
         .RX_FIFO_AF_DEPTH(RX_FIFO_AF_DEPTH),
         .RX_FIFO_AE_DEPTH(RX_FIFO_AE_DEPTH),
-
-        .TX_FIFO_DEPTH   (TX_FIFO_DEPTH),
+        .TX_FIFO_DEPTH(TX_FIFO_DEPTH),
         .TX_FIFO_AF_DEPTH(TX_FIFO_AF_DEPTH),
         .TX_FIFO_AE_DEPTH(TX_FIFO_AE_DEPTH)
     ) UART (
@@ -56,6 +53,8 @@ module uart_regs
 
         .i_rx(i_rx),
         .o_tx(o_tx),
+
+        .i_dvsr(i_dvsr),
 
         .i_deq_rxq  (w_deq_rxq),
         .o_rxq_data (w_rxq_data),

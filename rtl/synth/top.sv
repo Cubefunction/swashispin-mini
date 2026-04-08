@@ -31,7 +31,7 @@ module top
                   o_b27, o_b29, o_b28, o_b30,
                   o_b33, o_b35, o_b34, o_b36,
                   o_b39, o_b41, o_b40, o_b42,
-                  o_b45, o_b47, o_b46, o_b48,
+                  o_b45, o_b47, /* o_b46, o_b48, */
                   o_b51, o_b53, o_b52, o_b54,
                   o_b57, o_b59, o_b58, o_b60,
                   o_b63, o_b65, o_b64, o_b66,
@@ -101,7 +101,7 @@ module top
         .i_dc_clr_n(1'b1),
         .i_dc_rst_n(1'b1),
 
-        .i_aux_bus('h0),
+        .i_aux_bus({w_dc_ldac_n_bus[13], w_dc_cs_n_bus[1], 4'h0}),
 
         .*
     );

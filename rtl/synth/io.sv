@@ -36,7 +36,7 @@ module io
                   o_b27, o_b29, o_b28, o_b30,
                   o_b33, o_b35, o_b34, o_b36,
                   o_b39, o_b41, o_b40, o_b42,
-                  o_b45, o_b47, o_b46, o_b48,
+                  o_b45, o_b47, /* o_b46, o_b48, */
                   o_b51, o_b53, o_b52, o_b54,
                   o_b57, o_b59, o_b58, o_b60,
                   o_b63, o_b65, o_b64, o_b66,
@@ -147,8 +147,8 @@ module io
 
     assign o_b45 = i_dc_ldac_n_bus[5];
     assign o_b47 = i_dc_ldac_n_bus[16];
-    assign o_b46 = i_dc_cs_n_bus[1];
-    assign o_b48 = i_dc_ldac_n_bus[13];
+    // assign o_b46 = i_dc_cs_n_bus[1];
+    // assign o_b48 = i_dc_ldac_n_bus[13];
 
     assign o_b51 = i_dc_mosi_bus[5];
     assign o_b53 = i_dc_cs_n_bus[17];
