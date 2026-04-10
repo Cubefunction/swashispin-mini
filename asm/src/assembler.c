@@ -401,8 +401,10 @@ int main(int argc, char *argv[]) {
     int read = 0;
     char *xdev = NULL;
     char *rdev = NULL;
+    int udump = 0;
+    char *udumppath = NULL;
 
-    while ((opt = getopt(argc, argv, "f:o:x:r:s")) != -1) {
+    while ((opt = getopt(argc, argv, "f:o:x:r:u:s")) != -1) {
         switch (opt) {
             case 'f':
                 file = optarg;
@@ -420,6 +422,10 @@ int main(int argc, char *argv[]) {
                 break;
             case 's':
                 sim = 1;
+                break;
+            case 'u':
+                udump = 1;
+                udumppath = optarg;
                 break;
             default:
                 fprintf(stderr, "Usage: %s [-f file] [-o out] [-s] [-x xdev] [-r rdev]\n", argv[0]);
@@ -472,6 +478,15 @@ int main(int argc, char *argv[]) {
         if (launch != NULL)
             launch_load(launch);
         close(xfd);
+    }
+
+    FILE *udumpf = NULL;
+    if (udump) {
+        udumpf = fopen(udumppath, "w");
+        for (int ch = 0; ch < DC_CHANNELS; ch++) {
+            if (dc_programs[ch] != NULL)
+                dc_uart_dump(ch, dc_programs[ch], udumpf);
+        }
     }
 
     if (read) {
