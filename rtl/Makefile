@@ -2,9 +2,10 @@
 SIM := vcs
 # SRC := lib/fifo.sv lib/baudx16_generator.sv lib/receiver.sv lib/transmitter.sv lib/uart.sv src/uart_regs.sv
 # SRC := $(wildcard src/*.sv) lib/fifo.sv lib/baudx16_generator.sv lib/receiver.sv lib/transmitter.sv lib/uart.sv lib/ad5791.sv sim/cmd_dpi.c
-SRC := src/dc_decode.sv src/dc_spi_master.sv src/dc_core.sv src/sequencer.sv src/dc_ctrl.sv src/dc.sv lib/ad5791.sv
+SRC := src/dc_decode.sv src/dc_spi_master.sv src/dc_core.sv src/serial_sequencer.sv src/dc_ctrl.sv src/dc.sv lib/edge_detector.sv lib/bram.sv
+# SRC := src/serial_sequencer.sv lib/bram.sv lib/edge_detector.sv
 
-TB ?= dc_tb
+TB ?= serial_sequencer_tb
 # TB_SRC := sim/$(TB).sv
 TB_SRC := tb/$(TB).sv
 TARGET := $(TB)

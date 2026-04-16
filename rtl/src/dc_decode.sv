@@ -26,11 +26,10 @@ module dc_decode
         o_insn_modified = i_insn;
         o_insn_modified.w_arm = 1'b0;
 
-        if (i_insn.w_modify)
-            o_insn_modified.w_spi_din = {
-                i_insn.w_spi_din[DC_SPI_DATA_WIDTH-1:DC_DAC_WIDTH],
-                i_insn.w_spi_din[DC_DAC_WIDTH-1:0] + i_insn.w_dspi_din
-            };
+        o_insn_modified.w_spi_din = {
+            i_insn.w_spi_din[DC_SPI_DATA_WIDTH-1:DC_DAC_WIDTH],
+            i_insn.w_spi_din[DC_DAC_WIDTH-1:0] + i_insn.w_dspi_din
+        };
 
     end
 
