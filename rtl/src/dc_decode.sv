@@ -15,21 +15,29 @@ module dc_decode
             w_addr: i_addr,
             w_iters: i_insn.w_iters,
             w_spi_din: i_insn.w_spi_din,
-            w_dspi_din: i_insn.w_dspi_din,
-            w_spi_rd: i_insn.w_spi_rd,
+            w_dspi_din: {{(DC_DAC_WIDTH-DC_DELTA_WIDTH){i_insn.w_delta[DC_DELTA_WIDTH-1]}}, i_insn.w_delta},
             w_strb_ldac: i_insn.w_strb_ldac,
             w_hold_cycles: i_insn.w_hold_cycles,
             w_modify: i_insn.w_modify,
-            w_arm: i_insn.w_arm
+            w_arm: i_insn.w_arm,
+            w_idle: i_insn.w_idle
         };
 
         o_insn_modified = i_insn;
         o_insn_modified.w_arm = 1'b0;
 
-        o_insn_modified.w_spi_din = {
-            i_insn.w_spi_din[DC_SPI_DATA_WIDTH-1:DC_DAC_WIDTH],
-            i_insn.w_spi_din[DC_DAC_WIDTH-1:0] + i_insn.w_dspi_din
-        };
+        if (i_insn.w_modify) begin
+            if (i_insn.w_idle) begin
+                o_insn_modified.w_hold_cycles = i_insn.w_hold_cycles +
+                    {{(DC_CYCLE_WIDTH-DC_DELTA_WIDTH){1'b0}}, i_insn.w_delta};
+            end
+            else begin
+                o_insn_modified.w_spi_din = {
+                    i_insn.w_spi_din[DC_SPI_DATA_WIDTH-1:DC_DAC_WIDTH],
+                    i_insn.w_spi_din[DC_DAC_WIDTH-1:0] + d.w_dspi_din
+                };
+            end
+        end
 
     end
 

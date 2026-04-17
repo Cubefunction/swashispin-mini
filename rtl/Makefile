@@ -2,16 +2,16 @@
 SIM := vcs
 # SRC := lib/fifo.sv lib/baudx16_generator.sv lib/receiver.sv lib/transmitter.sv lib/uart.sv src/uart_regs.sv
 # SRC := $(wildcard src/*.sv) lib/fifo.sv lib/baudx16_generator.sv lib/receiver.sv lib/transmitter.sv lib/uart.sv lib/ad5791.sv sim/cmd_dpi.c
-SRC := src/dc_decode.sv src/dc_spi_master.sv src/dc_core.sv src/serial_sequencer.sv src/dc_ctrl.sv src/dc.sv lib/edge_detector.sv lib/bram.sv
+SRC := src/dc_decode.sv src/dc_spi_master.sv src/dc_core.sv src/serial_sequencer.sv src/dc_ctrl.sv src/dc.sv lib/edge_detector.sv lib/bram.sv lib/ad5791.sv
 # SRC := src/serial_sequencer.sv lib/bram.sv lib/edge_detector.sv
 
-TB ?= serial_sequencer_tb
+TB ?= dc_tb
 # TB_SRC := sim/$(TB).sv
 TB_SRC := tb/$(TB).sv
 TARGET := $(TB)
 CORES := $(shell getconf _NPROCESSORS_ONLN)
 
-VCS_FLAGS = -full64 -sverilog +incdir+include -debug_acc+all+dmptf -debug_region+cell+encrypt -kdb +warn=all -j$(CORES) +v2k
+VCS_FLAGS = -full64 -sverilog +incdir+include -debug_acc+all+dmptf +memcbk -debug_region+cell+encrypt -kdb +warn=all -j$(CORES) +v2k
 VERDI_FLAGS = +fsdbfile+dump.fsdb +vcs+all -gui
 
 all: $(TARGET)

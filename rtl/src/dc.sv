@@ -51,7 +51,7 @@ module dc
 
         .o_active(),
 
-        .o_addr(w_addr),
+        .o_pc(w_addr),
         .o_insn(w_insn),
         .i_next(w_next),
         .o_empty(w_empty),

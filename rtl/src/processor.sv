@@ -1,10 +1,9 @@
 // `default_nettype none
 `timescale 1ns / 1ps
 `include "dc.svh"
-`include "li.svh"
 `include "launch.svh"
 
-module dcli
+module processor
    #(parameter NUM_DC_CHANNEL=24,
      parameter NUM_LI_CHANNEL=1,
      parameter TOTAL_REGS=DC_SEQ_REGS+DC_CTRL_REGS+

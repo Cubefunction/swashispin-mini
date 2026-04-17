@@ -4,6 +4,19 @@
 
 module dc_tb;
 
+    localparam IST_ADDR_REG = 0;
+    localparam IST_REG_LO = IST_ADDR_REG + 1;
+    localparam IST_REG_HI = IST_REG_LO + DC_REG_PER_INSN - 1;
+    localparam IST_STRB_REG = IST_REG_HI + 1;
+
+    localparam ITERS_REG = IST_STRB_REG + 1;
+    localparam DEPTH_REG = ITERS_REG + 1;
+    localparam START_STRB_REG = DEPTH_REG + 1;
+    localparam HALT_STRB_REG = START_STRB_REG + 1;
+
+    localparam INSN_WIDTH = DC_INSN_WIDTH;
+    localparam PC_WIDTH = $clog2(DC_DEPTH);
+
     logic w_clk, w_rst;
 
     logic w_sclk;
@@ -71,27 +84,75 @@ module dc_tb;
         .VOUT(vdc)
     );
 
+    // tasks
+    task load_insn
+    (
+        input logic [PC_WIDTH-1:0] addr,
+        input logic [INSN_WIDTH-1:0] insn
+    );
+        @(negedge w_clk);
+        w_seq_regs[IST_ADDR_REG] = '0;
+
+        for (int i = 0; i < DC_REG_PER_INSN; i++) begin
+            w_seq_regs[IST_REG_LO + i] = '0;
+        end
+        w_seq_regs[IST_STRB_REG] = '0;
+
+        w_seq_regs[IST_ADDR_REG][PC_WIDTH-1:0] = addr;
+
+        w_seq_regs[IST_REG_LO][INSN_WIDTH - (DC_REG_PER_INSN - 1) * 32 - 1:0] =
+            insn[(DC_REG_PER_INSN - 1) * 32 +: INSN_WIDTH - (DC_REG_PER_INSN - 1) * 32];
+        for (int i = 1; i < DC_REG_PER_INSN; i++) begin
+            w_seq_regs[IST_REG_LO + i] = insn[(DC_REG_PER_INSN - 1 - i) * 32 +: 32];
+        end
+
+        w_seq_regs[IST_STRB_REG][0] = 1'b1;
+
+        @(negedge w_clk);
+        w_seq_regs[IST_STRB_REG][0] = 1'b0;
+        @(negedge w_clk);
+    endtask
+
+    task start_seq;
+        @(negedge w_clk);
+        w_seq_regs[START_STRB_REG][0] = 1'b1;
+
+        @(negedge w_clk);
+        w_seq_regs[START_STRB_REG][0] = 1'b0;
+    endtask
+
+    task halt_seq;
+        @(negedge w_clk);
+        w_seq_regs[HALT_STRB_REG][0] = 1'b1;
+
+        @(negedge w_clk);
+        w_seq_regs[HALT_STRB_REG][0] = 1'b0;
+    endtask
+
+    task load_iters(input logic [DC_SEQ_ITER_WIDTH-1:0] iters);
+        @(negedge w_clk);
+        w_seq_regs[ITERS_REG] = '0;
+        w_seq_regs[ITERS_REG][DC_SEQ_ITER_WIDTH-1:0] = iters;
+    endtask
+
+    task load_depth(input logic [PC_WIDTH-1:0] depth);
+        @(negedge w_clk);
+        w_seq_regs[DEPTH_REG] = '0;
+        w_seq_regs[DEPTH_REG][PC_WIDTH-1:0] = depth;
+    endtask
+
     localparam MAX_SEQ_ITERS = 10;
     localparam MAX_CORE_ITERS = 100;
     localparam MAX_CYCLES = 2000;
 
     dc_eop_t golden_seq [$];
     int num_insns;
-    int total_samples;
+    int iters;
     dc_eop_t eop;
     dc_eop_t golden_eop;
 
     dc_insn_t [0:DC_DEPTH-1] insns;
-    for (genvar i = 0; i < DC_DEPTH; i++) begin : INSNS_GEN
-        assign {w_seq_regs[i*DC_REG_PER_INSN:(i+1)*DC_REG_PER_INSN-1]} = 
-            {{(DC_REG_PER_INSN*32-DC_INSN_WIDTH){1'b0}}, insns[i]};
-    end
     
-    logic [31:0] iters_reg;
-    logic [31:0] start_reg;
-    assign w_seq_regs[DC_SEQ_REGS-2] = iters_reg;
-    assign w_seq_regs[DC_SEQ_REGS-1] = start_reg;
-
     logic [DC_SPI_DVSR_WIDTH-1:0] dvsr_reg;
     logic [DC_SPI_DELAY_WIDTH-1:0] delay_reg;
     logic [DC_SPI_CS_UP_WIDTH-1:0] cs_up_reg;
@@ -108,7 +169,7 @@ module dc_tb;
         if (golden_seq.size() > 0)
             golden_seq.delete();
 
-        for (int i = 0; i < iters_reg; i++) begin
+        for (int i = 0; i < iters; i++) begin
 
             for (int j = 0; j < num_insns; j++) begin
 
@@ -118,23 +179,25 @@ module dc_tb;
 
                         eop.w_addr = j;
                         eop.w_iter = iter;
-                        eop.w_spi_din = {insns[j].w_spi_din[DC_SPI_DATA_WIDTH-1:DC_DAC_WIDTH], insns[j].w_spi_din[DC_DAC_WIDTH-1:0] + 20'(insns[j].w_dspi_din * (insns[j].w_iters - iter))};
-                        eop.w_spi_rd = insns[j].w_spi_rd;
-                        eop.w_spi_dout = 'h0;
+                        eop.w_spi_din = {
+                            insns[j].w_spi_din[DC_SPI_DATA_WIDTH-1:DC_DAC_WIDTH], 
+                            insns[j].w_spi_din[DC_DAC_WIDTH-1:0] + 
+                            20'({{(DC_DAC_WIDTH-DC_DELTA_WIDTH){insns[j].w_delta[DC_DELTA_WIDTH-1]}}, insns[j].w_delta} * (insns[j].w_iters - iter))};
                         eop.w_ldac_cycles = cycle;
-                        eop.w_cycles_left = insns[j].w_hold_cycles;
+                        eop.w_cycles_left = insns[j].w_hold_cycles - (ldac_reg - cycle);
 
                         golden_seq.push_back(eop);
 
                     end
 
-                    for (int cycle = insns[j].w_hold_cycles; cycle >= 0; cycle--) begin
+                    for (int cycle = insns[j].w_hold_cycles - ldac_reg - 1; cycle >= 0; cycle--) begin
 
                         eop.w_addr = j;
                         eop.w_iter = iter;
-                        eop.w_spi_din = {insns[j].w_spi_din[DC_SPI_DATA_WIDTH-1:DC_DAC_WIDTH], insns[j].w_spi_din[DC_DAC_WIDTH-1:0] + 20'(insns[j].w_dspi_din * (insns[j].w_iters - iter))};
-                        eop.w_spi_rd = insns[j].w_spi_rd;
-                        eop.w_spi_dout = 'h0;
+                        eop.w_spi_din = {
+                            insns[j].w_spi_din[DC_SPI_DATA_WIDTH-1:DC_DAC_WIDTH], 
+                            insns[j].w_spi_din[DC_DAC_WIDTH-1:0] + 
+                            20'({{(DC_DAC_WIDTH-DC_DELTA_WIDTH){insns[j].w_delta[DC_DELTA_WIDTH-1]}}, insns[j].w_delta} * (insns[j].w_iters - iter))};
                         eop.w_ldac_cycles = 'h0;
                         eop.w_cycles_left = cycle;
 
@@ -151,32 +214,32 @@ module dc_tb;
     endtask
 
     task init;
+
         $display("init");
+
         insns[0] = '{
             w_iters: 'd0,
             w_spi_din: {1'b0, 3'b010, 10'b0, 4'b0, 1'b0, 1'b0, 1'b0, 1'b0, 1'b1, 1'b0},
-            w_dspi_din: 'h0,
-            w_spi_rd: 1'b0,
+            w_delta: 'h0,
             w_strb_ldac: 1'b0,
             w_hold_cycles: 'h0,
             w_modify: 1'b0,
-            w_arm: 1'b1
+            w_arm: 1'b1,
+            w_idle: 1'b0
         };
-        iters_reg = 32'h1;
-        start_reg = 32'h0;
-        dvsr_reg = 'd1;
-        delay_reg = 'd10;
-        cs_up_reg = 'd10;
-        ldac_reg = 'd10;
-        @(negedge w_clk);
-        start_reg = 1'b1;
-        new_ctrl_reg = 1'b1;
+
+        load_insn('d0, insns[0]);
+        load_iters('d1);
+        load_depth('d0);
+        start_seq;
+
         wait(w_armed);
         repeat(3) @(negedge w_clk);
-        start_reg = 'd0;
+
         w_start = 1'b1;
         @(negedge w_clk);
         w_start = 1'b0;
+
     endtask
 
     int min_hold_cycles;
@@ -200,43 +263,47 @@ module dc_tb;
         end
 
         num_insns = $urandom_range(1, DC_DEPTH - 1);
+        // num_insns = $urandom_range(1, 5);
 
         for (int i = 0; i < num_insns; i++) begin
             insns[i] = '{
                 w_iters: $urandom_range(0, MAX_CORE_ITERS),
                 w_spi_din: {1'b0, 3'b001, 20'($urandom_range(0, 20'hfffff))},
-                w_dspi_din: $urandom_range(0, 20'hfffff),
-                w_spi_rd: 1'b0,
+                w_delta: $urandom_range(0, 16'hffff),
                 w_strb_ldac: 1'b1,
                 w_hold_cycles: $urandom_range(min_hold_cycles, MAX_CYCLES),
                 w_modify: 1'b0,
-                w_arm: (i == 0)
+                w_arm: (i == 0),
+                w_idle: 1'b0
             };
             $display("insn%0d", i);
             $display("w_iters=%0d", insns[i].w_iters);
             $display("w_spi_din=0x%0h", insns[i].w_spi_din);
-            $display("w_dspi_din=0x%0h", insns[i].w_dspi_din);
-            $display("w_spi_rd=0x%0h", insns[i].w_spi_rd);
+            $display("w_delta=0x%0h", insns[i].w_delta);
             $display("w_strb_ldac=0x%0h", insns[i].w_strb_ldac);
             $display("w_hold_cycles=%0d", insns[i].w_hold_cycles);
-            $display("w_modify=0x%0h", insns[i].w_modify);
             $display("w_arm=0x%0h\n", insns[i].w_arm);
         end
 
-        iters_reg = $urandom_range(1, MAX_SEQ_ITERS);
-        start_reg = 32'h0;
+        for (int i = 0; i < num_insns; i++) begin
+            load_insn(i, insns[i]);
+        end
+
+        iters = $urandom_range(1, MAX_SEQ_ITERS);
+        load_iters(iters);
+        load_depth(num_insns - 1);
+
         new_ctrl_reg = 32'h0;
 
         get_golden_seq;
 
         @(negedge w_clk);
-        start_reg = 32'b1;
         new_ctrl_reg = 32'b1;
+        start_seq;
 
         wait(w_armed);
         $display("armed");
         repeat(3) @(negedge w_clk);
-        start_reg = 'd0;
         new_ctrl_reg = 'd0;
         w_start = 1'b1;
         @(negedge w_clk);
@@ -258,29 +325,39 @@ module dc_tb;
 
     initial begin
         w_clk = 1'b0;
-        forever #2 w_clk = !w_clk;
+        forever #5 w_clk = !w_clk;
     end
 
     int test;
 
     initial begin
+        $fsdbDumpfile("run.fsdb");
+        $fsdbDumpvars(0, dc_tb, "+all");
+        $fsdbDumpoff();
         w_rst = 1'b1;
         w_start = 1'b0;
         for (int i = 0; i < DC_DEPTH; i++) begin
             insns[i] = 'h0;
         end
-        iters_reg = 32'h0;
-        start_reg = 32'h0;
+        for (int i = 0; i < DC_SEQ_REGS; i++) begin
+            w_seq_regs[i] = 'h0;
+        end
+        dvsr_reg = 'h0;
+        delay_reg = 'h0;
+        cs_up_reg = 'h0;
+        ldac_reg = 'h0;
         new_ctrl_reg = 32'h0;
         @(negedge w_clk);
         w_rst = 1'b0;
 
         init;
-        $display("init finished");
+        $display($realtime, "init finished");
 
         test = 0;
         repeat (10) begin
             $display("test%0d", test);
+            if (test == 7)
+                $fsdbDumpon();
             rand_insns;
             test++;
         end
