@@ -3,8 +3,7 @@
 `include "dc.svh"
 
 module io
-   #(parameter NUM_DC_CHANNEL=24,
-     parameter NUM_LI_CHANNEL=1)
+   #(parameter NUM_DC_CHANNEL=24)
     (input  logic [0:NUM_DC_CHANNEL-1] i_dc_sclk_bus,
      input  logic [0:NUM_DC_CHANNEL-1] i_dc_mosi_bus,
      input  logic [0:NUM_DC_CHANNEL-1] i_dc_cs_n_bus,

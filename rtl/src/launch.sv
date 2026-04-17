@@ -3,73 +3,51 @@
 `include "launch.svh"
 
 module launch
-   #(parameter NUM_DC_CHANNEL=24,
-     parameter NUM_RF_CHANNEL=7,
-     parameter NUM_LI_CHANNEL=2)
+   #(parameter NUM_DC_CHANNEL=24)
     (input  logic i_clk, i_rst,
 
      input  logic [0:LCH_TOTAL_REGS-1][31:0] i_regs,
 
      input  logic [NUM_DC_CHANNEL-1:0] i_dc_armed,
-     input  logic [NUM_RF_CHANNEL-1:0] i_rf_armed,
-     input  logic [NUM_LI_CHANNEL-1:0] i_li_armed,
 
      input  logic i_trigger,
 
-     output logic [NUM_DC_CHANNEL-1:0] o_dc_start,
-     output logic [NUM_RF_CHANNEL-1:0] o_rf_start,
-     output logic [NUM_LI_CHANNEL-1:0] o_li_start);
+     output logic [NUM_DC_CHANNEL-1:0] o_dc_start);
 
-    logic w_last0, w_last0_ff1, w_last0_ff2;
+    logic w_new_ctrl;
 
-    assign w_last0 = (i_regs[3] == 'h0);
-
-    always_ff @(posedge i_clk) begin
-        w_last0_ff1 <= w_last0;
-        w_last0_ff2 <= w_last0_ff1;
-    end
-
-    logic w_new_stream;
-    assign w_new_stream = (w_last0_ff2 && !w_last0_ff1);
+    edge_detector IWR (
+        .i_clk(i_clk),
+        .i_rst(i_rst),
+        .i_signal(i_regs[LCH_TOTAL_REGS-1][0]),
+        .o_posedge(w_new_ctrl),
+        .o_negedge()
+    );
 
     logic [NUM_DC_CHANNEL-1:0] r_dc_active_mask;
-    logic [NUM_RF_CHANNEL-1:0] r_rf_active_mask;
-    logic [NUM_LI_CHANNEL-1:0] r_li_active_mask;
 
     always_ff @(posedge i_clk) begin
         if (i_rst) begin
             r_dc_active_mask <= 'h0;
-            r_rf_active_mask <= 'h0;
-            r_li_active_mask <= 'h0;
         end
-        else if (w_new_stream) begin
+        else if (w_new_ctrl) begin
             r_dc_active_mask <= i_regs[0][NUM_DC_CHANNEL-1:0];
-            r_rf_active_mask <= i_regs[1][NUM_RF_CHANNEL-1:0];
-            r_li_active_mask <= i_regs[2][NUM_LI_CHANNEL-1:0];
         end
     end
 
     logic [NUM_DC_CHANNEL-1:0] r_dc_armed;
-    logic [NUM_RF_CHANNEL-1:0] r_rf_armed;
-    logic [NUM_LI_CHANNEL-1:0] r_li_armed;
 
     always_ff @(posedge i_clk) begin
         if (i_rst) begin
             r_dc_armed <= 'h0;
-            r_rf_armed <= 'h0;
-            r_li_armed <= 'h0;
         end
         else begin
             r_dc_armed <= i_dc_armed;
-            r_rf_armed <= i_rf_armed;
-            r_li_armed <= i_li_armed;
         end
     end
 
-    logic w_dc_ready, w_rf_ready, w_li_ready;
+    logic w_dc_ready;
     assign w_dc_ready = ((r_dc_active_mask ^ r_dc_armed) == 'h0);
-    assign w_rf_ready = ((r_rf_active_mask ^ r_rf_armed) == 'h0);
-    assign w_li_ready = ((r_li_active_mask ^ r_li_armed) == 'h0);
 
     enum {IDLE, LAUNCH} r_state, w_next_state;
 
@@ -78,24 +56,18 @@ module launch
     end
 
     logic w_all_ready;
-    assign w_all_ready = r_state == LAUNCH && w_dc_ready && w_rf_ready && w_li_ready && i_trigger;
+    assign w_all_ready = (r_state == LAUNCH) && w_dc_ready && i_trigger;
 
     logic w_start;
     always_ff @(posedge i_clk) begin
         if (i_rst) begin
             o_dc_start <= 'h0;
-            o_rf_start <= 'h0;
-            o_li_start <= 'h0;
         end
         else if (w_start) begin
             o_dc_start <= r_dc_active_mask;
-            o_rf_start <= r_rf_active_mask;
-            o_li_start <= r_li_active_mask;
         end
         else begin
             o_dc_start <= 'h0;
-            o_rf_start <= 'h0;
-            o_li_start <= 'h0;
         end
     end
 
@@ -105,7 +77,7 @@ module launch
 
         case (r_state)
             IDLE: begin
-                w_next_state = w_new_stream ? LAUNCH : IDLE;
+                w_next_state = w_new_ctrl ? LAUNCH : IDLE;
             end
             default: begin
                 w_next_state = w_all_ready ? IDLE : LAUNCH;
