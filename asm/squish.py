@@ -27,6 +27,7 @@ Time units: ns us ms s
 """
 
 import argparse
+import math
 import os
 import re
 import sys
@@ -46,6 +47,10 @@ REG_PER_INSN   = 3    # ceil(72/32)
 NS_PER_CYCLE   = 10
 MAX_HOLD_CYCLES = (1 << CYCLE_BITS) - 1
 MAX_INSN_ITERS  = (1 << INSN_ITER_BITS) - 1
+CTRL_BITS      = 16   # dvsr, dlay, csup, ldac register widths
+REPEAT_BITS    = 16   # outer sequence repeat count
+MAX_CTRL       = (1 << CTRL_BITS) - 1
+MAX_REPEAT     = (1 << REPEAT_BITS) - 1
 DC_CHANNELS    = 24
 DC_DEPTH       = 512  # max instructions per channel
 
@@ -107,7 +112,13 @@ def parse_time(s: str) -> int:
 
 def time_to_cycles(t_ns: int) -> int:
     c = max(1, round(t_ns / NS_PER_CYCLE))
-    return min(c, MAX_HOLD_CYCLES)
+    if c > MAX_HOLD_CYCLES:
+        max_ns = MAX_HOLD_CYCLES * NS_PER_CYCLE
+        raise ValueError(
+            f"hold time {t_ns}ns ({t_ns/1e6:.3f}ms) exceeds {CYCLE_BITS}-bit max "
+            f"({MAX_HOLD_CYCLES} cycles × {NS_PER_CYCLE}ns = {max_ns/1e6:.3f}ms)"
+        )
+    return c
 
 
 # ── Instruction ──────────────────────────────────────────────────────────────
@@ -184,9 +195,36 @@ def parse_swp(line: str) -> DcInsn:
     if not (1 < n <= MAX_INSN_ITERS + 1):
         raise ValueError(f"n={n} out of range in: {line!r}")
     steps = n - 1
-    v1_s = volt_to_signed(v1)
-    v2_s = volt_to_signed(v2)
-    dv   = round((v2_s - v1_s) / steps)
+    v1_s  = volt_to_signed(v1)
+    v2_s  = volt_to_signed(v2)
+    diff  = v2_s - v1_s
+
+    # Ceiling magnitude so the sweep reaches or slightly exceeds v2
+    if diff >= 0:
+        dv = math.ceil(diff / steps)
+    else:
+        dv = -math.ceil(-diff / steps)
+
+    # Reject if delta exceeds the 16-bit signed hardware field
+    kmin_delta = -(1 << (DELTA_BITS - 1))
+    kmax_delta =  (1 << (DELTA_BITS - 1)) - 1
+    if abs(dv) > kmax_delta:
+        min_n = math.ceil(abs(diff) / kmax_delta) + 1
+        raise ValueError(
+            f"swp: required delta {abs(dv)} codes/step exceeds 16-bit max {kmax_delta}. "
+            f"Use at least n={min_n} to sweep {v1}V→{v2}V"
+        )
+
+    # Prevent 20-bit DAC accumulator wrap-around: if v1 + dv*steps overflows
+    # the signed DAC range, pull dv back to the largest safe integer step
+    kmin_dac = -(1 << (DAC_BITS - 1))
+    kmax_dac =  (1 << (DAC_BITS - 1)) - 1
+    final_code = v1_s + dv * steps
+    if final_code > kmax_dac:
+        dv = (kmax_dac - v1_s) // steps
+    elif final_code < kmin_dac:
+        dv = -((v1_s - kmin_dac) // steps)
+
     return DcInsn(
         iters       = steps,
         spi_din     = (1 << 20) | volt_to_code(v1),
@@ -219,12 +257,16 @@ def parse_lvl(line: str) -> DcInsn:
 
 
 def parse_set(line: str) -> DcInsn:
-    m = re.match(r'\s*set\s+(\w+)\s+([0-9a-fA-F]+)', line)
+    m = re.match(r'\s*set\s+(\w+)\s+(?:0[xX])?([0-9a-fA-F]+)', line)
     if not m:
         raise ValueError(f"Bad set: {line!r}")
     reg_name, din = m[1], int(m[2], 16)
     if reg_name not in DAC_REG_MAP:
         raise ValueError(f"Unknown DAC register {reg_name!r} in: {line!r}")
+    if din > (1 << DAC_BITS) - 1:
+        raise ValueError(
+            f"set din 0x{din:X} exceeds {DAC_BITS}-bit DAC field (max 0x{(1<<DAC_BITS)-1:X}) in: {line!r}"
+        )
     opts = get_opts(line)
     vplus_delta = to_bits(volt_to_signed(opts['vplus']), DELTA_BITS) if opts['has_vplus'] else 0
     return DcInsn(
@@ -269,13 +311,27 @@ def parse_ful(line: str) -> DcInsn:
     if not m:
         raise ValueError(f"Bad ful: {line!r}")
     its, din, cyc = int(m[1]), int(m[2], 16), int(m[3])
+    if its > MAX_INSN_ITERS:
+        raise ValueError(
+            f"ful its={its} exceeds {INSN_ITER_BITS}-bit max {MAX_INSN_ITERS} in: {line!r}"
+        )
+    if din > (1 << SPI_DATA_BITS) - 1:
+        raise ValueError(
+            f"ful din 0x{din:X} exceeds {SPI_DATA_BITS}-bit SPI field (max 0x{(1<<SPI_DATA_BITS)-1:X}) in: {line!r}"
+        )
+    if cyc > MAX_HOLD_CYCLES:
+        max_ns = MAX_HOLD_CYCLES * NS_PER_CYCLE
+        raise ValueError(
+            f"ful cyc={cyc} exceeds {CYCLE_BITS}-bit max {MAX_HOLD_CYCLES} "
+            f"(= {max_ns/1e6:.3f}ms) in: {line!r}"
+        )
     opts = get_opts(line)
     vplus_delta = to_bits(volt_to_signed(opts['vplus']), DELTA_BITS) if opts['has_vplus'] else 0
     return DcInsn(
-        iters       = its & MAX_INSN_ITERS,
-        spi_din     = din & 0xFFFFFF,
+        iters       = its,
+        spi_din     = din,
         delta       = vplus_delta,
-        hold_cycles = min(cyc, MAX_HOLD_CYCLES),
+        hold_cycles = cyc,
         strb_ldac   = opts['ldc'],
         modify      = opts['has_vplus'],
         arm         = opts['arm'],
@@ -343,27 +399,42 @@ def parse_asm(text: str) -> tuple[list[DcProgram], Optional[Launch]]:
                     continue
                 mc = re.match(r'\s*\.dvsr\s+(\d+)', ln)
                 if mc:
-                    prog.ctrl.dvsr = int(mc[1])
+                    val = int(mc[1])
+                    if val > MAX_CTRL:
+                        raise ValueError(f".dvsr {val} exceeds {CTRL_BITS}-bit max {MAX_CTRL}")
+                    prog.ctrl.dvsr = val
                     i += 1
                     continue
                 mc = re.match(r'\s*\.dlay\s+(\d+)', ln)
                 if mc:
-                    prog.ctrl.delay_cycles = int(mc[1])
+                    val = int(mc[1])
+                    if val > MAX_CTRL:
+                        raise ValueError(f".dlay {val} exceeds {CTRL_BITS}-bit max {MAX_CTRL}")
+                    prog.ctrl.delay_cycles = val
                     i += 1
                     continue
                 mc = re.match(r'\s*\.csup\s+(\d+)', ln)
                 if mc:
-                    prog.ctrl.cs_up_cycles = int(mc[1])
+                    val = int(mc[1])
+                    if val > MAX_CTRL:
+                        raise ValueError(f".csup {val} exceeds {CTRL_BITS}-bit max {MAX_CTRL}")
+                    prog.ctrl.cs_up_cycles = val
                     i += 1
                     continue
                 mc = re.match(r'\s*\.ldac\s+(\d+)', ln)
                 if mc:
-                    prog.ctrl.ldac_cycles = int(mc[1])
+                    val = int(mc[1])
+                    if val > MAX_CTRL:
+                        raise ValueError(f".ldac {val} exceeds {CTRL_BITS}-bit max {MAX_CTRL}")
+                    prog.ctrl.ldac_cycles = val
                     i += 1
                     continue
                 mc = re.match(r'\s*\.repeat\s+(\d+)', ln)
                 if mc:
-                    prog.repeat = int(mc[1])
+                    val = int(mc[1])
+                    if val > MAX_REPEAT:
+                        raise ValueError(f".repeat {val} exceeds {REPEAT_BITS}-bit max {MAX_REPEAT}")
+                    prog.repeat = val
                     i += 1
                     break
                 raise ValueError(f"Expected .repeat or ctrl directive, got: {ln!r}")
@@ -388,18 +459,36 @@ def parse_asm(text: str) -> tuple[list[DcProgram], Optional[Launch]]:
             programs.append(prog)
             continue
 
-        m = re.match(r'\s*\.launch', ln)
+        m = re.match(r'\s*\.launch(.*)', ln)
         if m:
             launch = Launch()
+            rest = m.group(1).strip()
             i += 1
-            while i < len(lines):
-                ln = lines[i].strip()
-                if line_empty(ln):
+            if rest:
+                # inline: .launch dc0 dc1 ... or .launch dc0-23
+                mask = 0
+                for tok in rest.split():
+                    rng = re.match(r'dc(\d+)-(\d+)$', tok)
+                    if rng:
+                        for ch in range(int(rng[1]), int(rng[2]) + 1):
+                            mask |= 1 << ch
+                    else:
+                        ch_m = re.match(r'dc(\d+)$', tok)
+                        if ch_m:
+                            mask |= 1 << int(ch_m[1])
+                        else:
+                            raise ValueError(f".launch: unexpected token {tok!r}")
+                launch.dc_chmask = mask
+            else:
+                # legacy: hex mask on next non-empty line
+                while i < len(lines):
+                    ln = lines[i].strip()
+                    if line_empty(ln):
+                        i += 1
+                        continue
+                    launch.dc_chmask = int(ln, 16)
                     i += 1
-                    continue
-                launch.dc_chmask = int(ln, 16)
-                i += 1
-                break
+                    break
             continue
 
         raise ValueError(f"Unexpected line {i+1}: {lines[i]!r}")
