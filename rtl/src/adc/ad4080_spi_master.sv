@@ -13,11 +13,11 @@ module ad4080_spi_master #(
     input  logic [ADDR_W-1:0]  reg_addr,
     input  logic [DATA_W-1:0]  wr_data,
 
-    input  logic               spi_sdo,     // AD4080 SDO
+    input  logic               spi_sdo,     // ADC -> FPGA
 
     output logic               spi_sclk,
     output logic               spi_cs_n,
-    output logic               spi_sdi,     // AD4080 SDI
+    output logic               spi_sdi,     // FPGA -> ADC
 
     output logic [DATA_W-1:0]  rd_data,
     output logic               rd_valid,
@@ -34,20 +34,26 @@ module ad4080_spi_master #(
 
     state_t state, next_state;
 
-    localparam int INST_W     = 1 + ADDR_W;
-    localparam int DELAY_DONE =  1;
+    localparam int INST_W = 1 + ADDR_W;
+    localparam int DELAY_DONE = 1;
 
-    logic [INST_W-1:0]           inst_shift_reg;
-    logic [INST_W-1:0]           inst_word;
-    logic [DATA_W-1:0]           data_shift_reg;
+    localparam int CLK_CNT_W  = (CLK_DIV    <= 1) ? 1 : $clog2(CLK_DIV);
+    localparam int DONE_CNT_W = (DELAY_DONE <= 1) ? 1 : $clog2(DELAY_DONE);
 
-    logic [$clog2(INST_W+1)-1:0] inst_bit_cnt;
-    logic [$clog2(DATA_W+1)-1:0] data_bit_cnt;
-    logic [$clog2(CLK_DIV)-1:0]  clk_cnt;
-    logic                        sclk_int;
+    logic [INST_W-1:0]             inst_shift_reg;
+    logic [INST_W-1:0]             inst_word;
+    logic [DATA_W-1:0]             data_shift_reg;
 
-    logic                        done_flag;
-    logic [$clog2(DELAY_DONE)-1:0] done_cnt;
+    logic [$clog2(INST_W+1)-1:0]   inst_bit_cnt;
+    logic [$clog2(DATA_W+1)-1:0]   data_bit_cnt;
+    logic [CLK_CNT_W-1:0]          clk_cnt;
+    logic                          sclk_int;
+
+    logic                          inst_started;
+    logic                          data_started;
+
+    logic                          done_flag;
+    logic [DONE_CNT_W-1:0]         done_cnt;
 
     assign inst_word = {rw, reg_addr};
 
@@ -56,12 +62,12 @@ module ad4080_spi_master #(
     //------------------------------------------------
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            done_cnt  <= 'd0;
+            done_cnt  <= '0;
             done_flag <= 1'b0;
         end
         else if (state == DONE) begin
             if (done_cnt == DELAY_DONE - 1) begin
-                done_cnt  <= 'd0;
+                done_cnt  <= '0;
                 done_flag <= 1'b1;
             end
             else begin
@@ -70,13 +76,14 @@ module ad4080_spi_master #(
             end
         end
         else begin
-            done_cnt  <= 'd0;
+            done_cnt  <= '0;
             done_flag <= 1'b0;
         end
     end
 
     //------------------------------------------------
     // SPI clock output
+    // idle high
     //------------------------------------------------
     assign spi_sclk = ((state == INST) || (state == DATA)) ? sclk_int : 1'b1;
 
@@ -103,13 +110,21 @@ module ad4080_spi_master #(
             end
 
             INST: begin
-                if ((clk_cnt == CLK_DIV-1) && (sclk_int == 1'b1) && (inst_bit_cnt == 0))
+                if ((clk_cnt == CLK_DIV-1) &&
+                    (sclk_int == 1'b0) &&
+                    (inst_bit_cnt == 1) &&
+                    inst_started) begin
                     next_state = DATA;
+                end
             end
 
             DATA: begin
-                if ((clk_cnt == CLK_DIV-1) && (sclk_int == 1'b1) && (data_bit_cnt == 0))
+                if ((clk_cnt == CLK_DIV-1) &&
+                    (sclk_int == 1'b0) &&
+                    (data_bit_cnt == 1) &&
+                    data_started) begin
                     next_state = DONE;
+                end
             end
 
             DONE: begin
@@ -133,6 +148,8 @@ module ad4080_spi_master #(
             data_bit_cnt   <= '0;
             clk_cnt        <= '0;
             sclk_int       <= 1'b1;
+            inst_started   <= 1'b0;
+            data_started   <= 1'b0;
 
             spi_cs_n       <= 1'b1;
             spi_sdi        <= 1'b0;
@@ -158,6 +175,8 @@ module ad4080_spi_master #(
                     clk_cnt      <= '0;
                     inst_bit_cnt <= '0;
                     data_bit_cnt <= '0;
+                    inst_started <= 1'b0;
+                    data_started <= 1'b0;
                     busy         <= 1'b0;
 
                     if (start) begin
@@ -165,17 +184,21 @@ module ad4080_spi_master #(
                         data_shift_reg <= wr_data;
 
                         spi_cs_n       <= 1'b0;
-                        spi_sdi        <= rw;      // 等价于 inst_word[INST_W-1]
+                        spi_sdi        <= rw;      // first instruction bit
                         sclk_int       <= 1'b1;
                         clk_cnt        <= '0;
                         inst_bit_cnt   <= INST_W;
                         data_bit_cnt   <= DATA_W;
+                        inst_started   <= 1'b0;
+                        data_started   <= 1'b0;
                         busy           <= 1'b1;
                     end
                 end
 
                 //----------------------------------------
                 // INST
+                // falling edge: after first sample, drive next bit
+                // rising  edge: consume one bit
                 //----------------------------------------
                 INST: begin
                     spi_cs_n <= 1'b0;
@@ -186,26 +209,28 @@ module ad4080_spi_master #(
                         sclk_int <= ~sclk_int;
 
                         //--------------------------------
-                        // Falling edge: one instruction bit done
+                        // Falling edge: 1 -> 0
                         //--------------------------------
                         if (sclk_int == 1'b1) begin
+                            if (inst_started) begin
+                                if (inst_bit_cnt > 1) begin
+                                    inst_shift_reg <= {inst_shift_reg[INST_W-2:0], 1'b0};
+                                    spi_sdi        <= inst_shift_reg[INST_W-2];
+                                end
+                                else begin
+                                    if (!rw)
+                                        spi_sdi <= data_shift_reg[DATA_W-1];
+                                    else
+                                        spi_sdi <= 1'b0;
+                                end
+                            end
+                        end
+                        else begin
                             if (inst_bit_cnt != 0)
                                 inst_bit_cnt <= inst_bit_cnt - 1'b1;
-                        end
-                        //--------------------------------
-                        // Rising edge: prepare next instruction bit
-                        //--------------------------------
-                        else begin
-                            if (inst_bit_cnt > 1) begin
-                                inst_shift_reg <= {inst_shift_reg[INST_W-2:0], 1'b0};
-                                spi_sdi        <= inst_shift_reg[INST_W-2];
-                            end
-                            else begin
-                                if (!rw)
-                                    spi_sdi <= data_shift_reg[DATA_W-1];
-                                else
-                                    spi_sdi <= 1'b0;
-                            end
+
+                            if (!inst_started)
+                                inst_started <= 1'b1;
                         end
                     end
                     else begin
@@ -213,9 +238,7 @@ module ad4080_spi_master #(
                     end
                 end
 
-                //----------------------------------------
-                // DATA
-                //----------------------------------------
+
                 DATA: begin
                     spi_cs_n <= 1'b0;
                     busy     <= 1'b1;
@@ -225,9 +248,29 @@ module ad4080_spi_master #(
                         sclk_int <= ~sclk_int;
 
                         //--------------------------------
-                        // Falling edge
+                        // Falling edge: 1 -> 0
                         //--------------------------------
                         if (sclk_int == 1'b1) begin
+                            // Same idea: don't advance on first falling edge
+                            if (data_started) begin
+                                if (!rw) begin
+                                    if (data_bit_cnt > 1) begin
+                                        data_shift_reg <= {data_shift_reg[DATA_W-2:0], 1'b0};
+                                        spi_sdi        <= data_shift_reg[DATA_W-2];
+                                    end
+                                    else begin
+                                        spi_sdi <= 1'b0;
+                                    end
+                                end
+                                else begin
+                                    spi_sdi <= 1'b0;
+                                end
+                            end
+                        end
+                        //--------------------------------
+                        // Rising edge: 0 -> 1
+                        //--------------------------------
+                        else begin
                             if (rw) begin
                                 if (data_bit_cnt != 0) begin
                                     data_shift_reg <= {data_shift_reg[DATA_W-2:0], spi_sdo};
@@ -238,23 +281,9 @@ module ad4080_spi_master #(
                                 if (data_bit_cnt != 0)
                                     data_bit_cnt <= data_bit_cnt - 1'b1;
                             end
-                        end
-                        //--------------------------------
-                        // Rising edge
-                        //--------------------------------
-                        else begin
-                            if (!rw) begin
-                                if (data_bit_cnt > 1) begin
-                                    data_shift_reg <= {data_shift_reg[DATA_W-2:0], 1'b0};
-                                    spi_sdi        <= data_shift_reg[DATA_W-2];
-                                end
-                                else begin
-                                    spi_sdi <= 1'b0;
-                                end
-                            end
-                            else begin
-                                spi_sdi <= 1'b0;
-                            end
+
+                            if (!data_started)
+                                data_started <= 1'b1;
                         end
                     end
                     else begin
@@ -270,6 +299,8 @@ module ad4080_spi_master #(
                     spi_sdi  <= 1'b0;
                     sclk_int <= 1'b1;
                     clk_cnt  <= '0;
+                    inst_started <= 1'b0;
+                    data_started <= 1'b0;
                     busy     <= done_flag ? 1'b0 : 1'b1;
                     done     <= done_flag ? 1'b1 : 1'b0;
 
@@ -280,15 +311,17 @@ module ad4080_spi_master #(
                 end
 
                 default: begin
-                    spi_cs_n <= 1'b1;
-                    spi_sdi  <= 1'b0;
-                    sclk_int <= 1'b1;
-                    busy     <= 1'b0;
-                    done     <= 1'b0;
-                    rd_valid <= 1'b0;
-                    clk_cnt  <= '0;
+                    spi_cs_n     <= 1'b1;
+                    spi_sdi      <= 1'b0;
+                    sclk_int     <= 1'b1;
+                    busy         <= 1'b0;
+                    done         <= 1'b0;
+                    rd_valid     <= 1'b0;
+                    clk_cnt      <= '0;
                     inst_bit_cnt <= '0;
                     data_bit_cnt <= '0;
+                    inst_started <= 1'b0;
+                    data_started <= 1'b0;
                 end
             endcase
         end

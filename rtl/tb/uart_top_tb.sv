@@ -45,8 +45,6 @@ module uart_top_tb;
     logic [15:0] spi_words_captured [0:4];
     integer      pc_tsmt_which_bit;
 
-    // 如果你的 uart_top 没有把 adc_core 输出拉到顶层，
-    // 可以直接用层次引用去看内部信号。
     wire w_adc_sampling = DUT.u_adc_core.o_adc_sampling;
     wire w_adc_active   = DUT.u_adc_core.o_active;
 
