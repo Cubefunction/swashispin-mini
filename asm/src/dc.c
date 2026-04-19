@@ -11,20 +11,6 @@
 #include <sys/mman.h>
 #include <inttypes.h>
 
-
-static uint32_t dc_v2dac_code(double v) {
-    const double span = (VMAX - VMIN);
-    const double fullscale   = (double)((1u << DC_DAC_BITS) - 1u);
-    if (span <= 0.0) return 0;
-
-    double norm   = (v - VMIN) / span;   // ideal 0..1
-    double scaled = norm * fullscale;           // ideal 0..(2^N-1)
-
-    if (scaled < 0.0)       scaled = 0.0;
-    if (scaled > fullscale) scaled = fullscale;
-    return (uint32_t)llround(scaled);
-}
-
 static uint32_t dc_t2cycles(uint32_t t_ns) {
     const uint64_t max_cycles = (1ull << DC_CYCLE_BITS) - 1ull;
     uint64_t cycles = ( (uint64_t)t_ns + (NS_PER_CYCLE/2) ) / (uint64_t)NS_PER_CYCLE;
@@ -57,11 +43,14 @@ static void dc_swp2insn(dc_swp_t *swp, dc_insn_t *insn) {
 
 static void dc_lvl2insn(dc_lvl_t *lvl, dc_insn_t *insn) {
 
-    uint32_t din = (1u << 20) | dc_v2dac_code(lvl->v);
+    uint32_t v_code = (uint32_t)real2twos(VMIN, VMAX, DC_DAC_BITS, lvl->v, 0);
+
+    uint32_t din = (1u << 20) | (v_code & ((1u << 20) - 1u));
 
     insn->iters = 0;
     insn->spi_din = din;
-    insn->dspi_din = lvl->opt.has_vplus ? lvl->opt.vplus : 0;
+    insn->dspi_din = lvl->opt.has_vplus ? 
+        ((uint32_t)real2twos(VMIN, VMAX, DC_DAC_BITS, lvl->opt.vplus, 0)) : 0;
     insn->spi_rd = lvl->opt.rd;
     insn->strb_ldac = 1;
     insn->hold_cycles = dc_t2cycles(lvl->t_ns);
@@ -307,7 +296,7 @@ static int dc_parse_get(char *line, dc_get_t *get) {
     char paren[256] = {0};
 
     int got = sscanf(line, 
-        " set %3s ( %255[^)] )", 
+        " get %3s ( %255[^)] )", 
         r, paren);
 
     if (got < 1) return -1;
@@ -609,3 +598,88 @@ int dc_read_regs(int uartfd) {
 
 }
 
+static void write_bin(FILE *fp, int len, uint8_t *tx) {
+    for (int i = 0; i < len; i++) {
+        uint8_t x = tx[i];
+        fprintf(fp, "%c%c%c%c%c%c%c%c\n",
+            (x & 0x80) ? '1' : '0',
+            (x & 0x40) ? '1' : '0',
+            (x & 0x20) ? '1' : '0',
+            (x & 0x10) ? '1' : '0',
+            (x & 0x08) ? '1' : '0',
+            (x & 0x04) ? '1' : '0',
+            (x & 0x02) ? '1' : '0',
+            (x & 0x01) ? '1' : '0');
+    }
+}
+
+int dc_uart_dump(int dc_channel, dc_program_t *dc_program, FILE *fp) {
+
+    assert(0 <= dc_channel && dc_channel <= RF_UIO_BASE - DC_UIO_BASE - 1);
+
+    uint8_t tx[6] = {0, 0, 0, 0, 0, 0};
+
+    for (int i = 0; i < DC_CTRL_REGS - 1; i++) {
+
+        if (dc_program->ctrl_regs[i] != -1) {
+            tx[0] = (uint8_t)(DC_SEQ_REGS + i);
+            tx[1] = (uint8_t)(((uint32_t)dc_program->ctrl_regs[i]) >> 24);
+            tx[2] = (uint8_t)(((uint32_t)dc_program->ctrl_regs[i]) >> 16);
+            tx[3] = (uint8_t)(((uint32_t)dc_program->ctrl_regs[i]) >> 8);
+            tx[4] = (uint8_t)(((uint32_t)dc_program->ctrl_regs[i]));
+        }
+
+
+        write_bin(fp, 5, tx);
+
+    }
+
+    tx[0] = (uint8_t)(DC_SEQ_REGS + DC_CTRL_REGS - 1);
+    tx[1] = 0;
+    tx[2] = 0;
+    tx[3] = 0;
+    tx[4] = 0;
+
+    write_bin(fp, 5, tx);
+
+    tx[0] = (uint8_t)(DC_SEQ_REGS + DC_CTRL_REGS - 1);
+    uint32_t chsel = 1U << dc_channel;
+    tx[1] = (uint8_t)(chsel >> 24);
+    tx[2] = (uint8_t)(chsel >> 16);
+    tx[3] = (uint8_t)(chsel >> 8);
+    tx[4] = (uint8_t)(chsel);
+
+    write_bin(fp, 5, tx);
+
+    for (int i = 0; i < DC_SEQ_REGS - 1; i++) {
+
+        tx[0] = (uint8_t)i;
+        tx[1] = (uint8_t)(dc_program->seq_regs[i] >> 24);
+        tx[2] = (uint8_t)(dc_program->seq_regs[i] >> 16);
+        tx[3] = (uint8_t)(dc_program->seq_regs[i] >> 8);
+        tx[4] = (uint8_t)(dc_program->seq_regs[i]);
+
+        write_bin(fp, 5, tx);
+
+    }
+
+    tx[0] = (uint8_t)(DC_SEQ_REGS - 1);
+    tx[1] = 0;
+    tx[2] = 0;
+    tx[3] = 0;
+    tx[4] = 0;
+
+    write_bin(fp, 5, tx);
+
+    tx[0] = (uint8_t)(DC_SEQ_REGS - 1);
+    chsel = 1U << dc_channel;
+    tx[1] = (uint8_t)(chsel >> 24);
+    tx[2] = (uint8_t)(chsel >> 16);
+    tx[3] = (uint8_t)(chsel >> 8);
+    tx[4] = (uint8_t)(chsel);
+
+    write_bin(fp, 5, tx);
+
+    return 0;
+
+}

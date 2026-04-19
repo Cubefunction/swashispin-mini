@@ -16,6 +16,8 @@ module uart
      input  logic i_rx,
      output logic o_tx,
 
+     input  logic [10:0] i_dvsr,
+
      input  logic                  i_deq_rxq,
      output logic [DATA_WIDTH-1:0] o_rxq_data,
      output logic                  o_rxq_empty,
@@ -35,7 +37,7 @@ module uart
     baudx16_generator BAUD (
         .i_clk(i_clk),
         .i_rst(i_rst),
-        .i_dvsr(11'd6), // baudrate = 115200, clock period = 100Mhz
+        .i_dvsr(i_dvsr),
         .o_sample_tick(w_sample_tick)
     );
     

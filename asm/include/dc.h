@@ -52,7 +52,7 @@ typedef struct {
     uint32_t arm;
     uint32_t rd;
     uint32_t has_vplus;
-    uint32_t vplus;
+    double vplus;
     uint32_t ldc;
 } dc_opt_t;
 
@@ -97,5 +97,6 @@ void dc_assemble(dc_program_t *prog);
 int dc_load_insns(int dc_channel, dc_program_t *dc_program);
 int dc_write_regs(int dc_channel, dc_program_t *dc_program, int uartfd);
 int dc_read_regs(int uartfd);
+int dc_uart_dump(int dc_channel, dc_program_t *dc_program, FILE *fp);
 
 #endif

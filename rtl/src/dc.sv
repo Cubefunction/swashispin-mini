@@ -39,17 +39,19 @@ module dc
     logic [$clog2(DEPTH)-1:0] w_addr;
     dc_insn_t w_insn, w_insn_modified;
 
-    sequencer #(
+    serial_sequencer #(
+        .PC_WIDTH($clog2(DEPTH)),
         .INSN_WIDTH(INSN_WIDTH),
-        .ITER_WIDTH(SEQ_ITER_WIDTH),
-        .DEPTH(DEPTH)
+        .ITER_WIDTH(SEQ_ITER_WIDTH)
     ) SEQ (
         .i_clk(i_clk),
         .i_rst(i_rst),
 
         .i_regs(i_seq_regs),
 
-        .o_addr(w_addr),
+        .o_active(),
+
+        .o_pc(w_addr),
         .o_insn(w_insn),
         .i_next(w_next),
         .o_empty(w_empty),

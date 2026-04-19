@@ -1,7 +1,6 @@
 `default_nettype none
 `timescale 1ns / 1ps
 `include "include/dc.svh"
-`include "include/li.svh"
 `include "include/launch.svh"
 
 import "DPI-C" function int cmd_open(input string path);
@@ -12,11 +11,8 @@ module simulator;
 
     // define number of dc/li channels
     localparam NUM_DC_CHANNEL=24;
-    localparam NUM_LI_CHANNEL=1;
 
-    localparam TOTAL_REGS=DC_SEQ_REGS+DC_CTRL_REGS+
-                          LI_SEQ_REGS+LI_CTRL_REGS+
-                          LCH_TOTAL_REGS;
+    localparam TOTAL_REGS=DC_SEQ_REGS+DC_CTRL_REGS+LCH_TOTAL_REGS;
 
     /********************
     * signal declaration
@@ -60,14 +56,14 @@ module simulator;
         .i_rst(w_rst),
         .i_rx(w_rx),
         .o_tx(w_tx),
+        .i_dvsr(11'd6),
         .o_regs(w_regs)
     );
 
 
-    dcli #(
-        .NUM_DC_CHANNEL(NUM_DC_CHANNEL),
-        .NUM_LI_CHANNEL(NUM_LI_CHANNEL)
-    ) DCLI (
+    processor #(
+        .NUM_DC_CHANNEL(NUM_DC_CHANNEL)
+    ) PROCESSOR (
         .i_clk(w_clk),
         .i_rst(w_rst),
 
