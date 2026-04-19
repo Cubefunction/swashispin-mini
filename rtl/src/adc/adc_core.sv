@@ -53,7 +53,7 @@ module adc_core #(
     //==================================================
     logic [ADDR_WIDTH-1:0] id_pc;
     logic [3:0]            id_opcode;
-    logic [11:0]           id_sample_count;
+    logic [11:0]           id_count_field;
     logic [ADDR_WIDTH-1:0] id_target;
     logic [15:0]           id_delay_cycles;
     logic                  id_valid;
@@ -63,7 +63,7 @@ module adc_core #(
     //==================================================
     logic [ADDR_WIDTH-1:0] ex_pc;
     logic [3:0]            ex_opcode;
-    logic [11:0]           ex_sample_count;
+    logic [11:0]           ex_count_field;
     logic [ADDR_WIDTH-1:0] ex_target;
     logic [15:0]           ex_delay_cycles;
     logic                  ex_valid;
@@ -76,15 +76,24 @@ module adc_core #(
     logic                  ex_busy;
 
     //==================================================
+    // Per-JMP loop state
+    //==================================================
+    logic [11:0]           jmp_left_mem [0:NUM_REGS-1];
+    logic                  jmp_init_mem [0:NUM_REGS-1];
+
+    logic [11:0]           ex_jmp_left_effective;
+    logic                  ex_jmp_take;
+
+    //==================================================
     // decode wires from IF
     //==================================================
     logic [3:0]            d_opcode;
-    logic [11:0]           d_sample_count;
+    logic [11:0]           d_count_field;
     logic [ADDR_WIDTH-1:0] d_target;
     logic [15:0]           d_delay_cycles;
 
     assign d_opcode       = if_insn[31:28];
-    assign d_sample_count = if_insn[27:16];
+    assign d_count_field  = if_insn[27:16];
     assign d_target       = if_insn[ADDR_WIDTH-1:0];
     assign d_delay_cycles = if_insn[15:0];
 
@@ -100,6 +109,15 @@ module adc_core #(
     assign stall_pipe  = ex_valid && ex_busy;
     assign commit_fire = ex_valid && ex_done;
     assign ex_load_new = (!stall_pipe) && id_valid && !commit_fire;
+
+    //==================================================
+    // JMP effective remaining count
+    //==================================================
+    assign ex_jmp_left_effective =
+        jmp_init_mem[ex_pc] ? jmp_left_mem[ex_pc] : ex_count_field;
+
+    assign ex_jmp_take =
+        (ex_valid && (ex_opcode == OP_JMP) && (ex_jmp_left_effective != 12'd0));
 
     //==================================================
     // execution done / next pc
@@ -122,7 +140,11 @@ module adc_core #(
             OP_JMP: begin
                 if (ex_valid)
                     ex_done = 1'b1;
-                commit_next_pc = ex_target;
+
+                if (ex_jmp_take)
+                    commit_next_pc = ex_target;
+                else
+                    commit_next_pc = ex_pc + ADDR_WIDTH'(1);
             end
 
             OP_END: begin
@@ -142,36 +164,42 @@ module adc_core #(
     //==================================================
     // sequential
     //==================================================
+    integer k;
     always_ff @(posedge i_clk) begin
         if (i_rst) begin
-            start_en_d        <= 1'b0;
-            run_latched       <= 1'b0;
-            adc_spi_finish_d  <= 1'b0;
+            start_en_d       <= 1'b0;
+            run_latched      <= 1'b0;
+            adc_spi_finish_d <= 1'b0;
 
-            if_pc             <= '0;
-            if_insn           <= '0;
-            if_valid          <= 1'b0;
+            if_pc            <= '0;
+            if_insn          <= '0;
+            if_valid         <= 1'b0;
 
-            id_pc             <= '0;
-            id_opcode         <= '0;
-            id_sample_count   <= '0;
-            id_target         <= '0;
-            id_delay_cycles   <= '0;
-            id_valid          <= 1'b0;
+            id_pc            <= '0;
+            id_opcode        <= '0;
+            id_count_field   <= '0;
+            id_target        <= '0;
+            id_delay_cycles  <= '0;
+            id_valid         <= 1'b0;
 
-            ex_pc             <= '0;
-            ex_opcode         <= '0;
-            ex_sample_count   <= '0;
-            ex_target         <= '0;
-            ex_delay_cycles   <= '0;
-            ex_valid          <= 1'b0;
+            ex_pc            <= '0;
+            ex_opcode        <= '0;
+            ex_count_field   <= '0;
+            ex_target        <= '0;
+            ex_delay_cycles  <= '0;
+            ex_valid         <= 1'b0;
 
-            ex_timer          <= '0;
-            ex_samples_left   <= '0;
-            ex_busy           <= 1'b0;
+            ex_timer         <= '0;
+            ex_samples_left  <= '0;
+            ex_busy          <= 1'b0;
 
-            o_adc_sampling    <= 1'b0;
-            o_active          <= 1'b0;
+            o_adc_sampling   <= 1'b0;
+            o_active         <= 1'b0;
+
+            for (k = 0; k < NUM_REGS; k++) begin
+                jmp_left_mem[k] <= '0;
+                jmp_init_mem[k] <= 1'b0;
+            end
         end
         else begin
             start_en_d       <= start_en;
@@ -183,26 +211,42 @@ module adc_core #(
             else if (commit_fire && (ex_opcode == OP_END))
                 run_latched <= 1'b0;
 
+            // clear all JMP loop states whenever a new program start pulse comes
+            if (start_pulse) begin
+                for (k = 0; k < NUM_REGS; k++) begin
+                    jmp_left_mem[k] <= '0;
+                    jmp_init_mem[k] <= 1'b0;
+                end
+            end
+            // update JMP state when a JMP commits
+            else if (commit_fire && (ex_opcode == OP_JMP)) begin
+                jmp_init_mem[ex_pc] <= 1'b1;
+
+                if (ex_jmp_take)
+                    jmp_left_mem[ex_pc] <= ex_jmp_left_effective - 12'd1;
+                else
+                    jmp_left_mem[ex_pc] <= 12'd0;
+            end
+
             //==================================================
             // idle / stopped
             //==================================================
             if (!run_latched) begin
                 if (start_pulse) begin
-                    // arm pipeline only once on start pulse
                     if_pc           <= '0;
                     if_insn         <= i_all_regs['0];
                     if_valid        <= 1'b1;
 
                     id_pc           <= '0;
                     id_opcode       <= '0;
-                    id_sample_count <= '0;
+                    id_count_field  <= '0;
                     id_target       <= '0;
                     id_delay_cycles <= '0;
                     id_valid        <= 1'b0;
 
                     ex_pc           <= '0;
                     ex_opcode       <= '0;
-                    ex_sample_count <= '0;
+                    ex_count_field  <= '0;
                     ex_target       <= '0;
                     ex_delay_cycles <= '0;
                     ex_valid        <= 1'b0;
@@ -221,14 +265,14 @@ module adc_core #(
 
                     id_pc           <= '0;
                     id_opcode       <= '0;
-                    id_sample_count <= '0;
+                    id_count_field  <= '0;
                     id_target       <= '0;
                     id_delay_cycles <= '0;
                     id_valid        <= 1'b0;
 
                     ex_pc           <= '0;
                     ex_opcode       <= '0;
-                    ex_sample_count <= '0;
+                    ex_count_field  <= '0;
                     ex_target       <= '0;
                     ex_delay_cycles <= '0;
                     ex_valid        <= 1'b0;
@@ -282,8 +326,8 @@ module adc_core #(
 
                         OP_SAM: begin
                             ex_timer        <= '0;
-                            ex_samples_left <= id_sample_count;
-                            ex_busy         <= (id_sample_count != 12'd0);
+                            ex_samples_left <= id_count_field;
+                            ex_busy         <= (id_count_field != 12'd0);
                         end
 
                         default: begin
@@ -323,14 +367,14 @@ module adc_core #(
                     // flush younger stages
                     id_pc           <= '0;
                     id_opcode       <= '0;
-                    id_sample_count <= '0;
+                    id_count_field  <= '0;
                     id_target       <= '0;
                     id_delay_cycles <= '0;
                     id_valid        <= 1'b0;
 
                     ex_pc           <= '0;
                     ex_opcode       <= '0;
-                    ex_sample_count <= '0;
+                    ex_count_field  <= '0;
                     ex_target       <= '0;
                     ex_delay_cycles <= '0;
                     ex_valid        <= 1'b0;
@@ -344,7 +388,7 @@ module adc_core #(
                     // ID
                     id_pc           <= if_pc;
                     id_opcode       <= d_opcode;
-                    id_sample_count <= d_sample_count;
+                    id_count_field  <= d_count_field;
                     id_target       <= d_target;
                     id_delay_cycles <= d_delay_cycles;
                     id_valid        <= if_valid;
@@ -352,7 +396,7 @@ module adc_core #(
                     // EX
                     ex_pc           <= id_pc;
                     ex_opcode       <= id_opcode;
-                    ex_sample_count <= id_sample_count;
+                    ex_count_field  <= id_count_field;
                     ex_target       <= id_target;
                     ex_delay_cycles <= id_delay_cycles;
                     ex_valid        <= id_valid;
@@ -365,14 +409,14 @@ module adc_core #(
 
                     id_pc           <= id_pc;
                     id_opcode       <= id_opcode;
-                    id_sample_count <= id_sample_count;
+                    id_count_field  <= id_count_field;
                     id_target       <= id_target;
                     id_delay_cycles <= id_delay_cycles;
                     id_valid        <= id_valid;
 
                     ex_pc           <= ex_pc;
                     ex_opcode       <= ex_opcode;
-                    ex_sample_count <= ex_sample_count;
+                    ex_count_field  <= ex_count_field;
                     ex_target       <= ex_target;
                     ex_delay_cycles <= ex_delay_cycles;
                     ex_valid        <= ex_valid;
