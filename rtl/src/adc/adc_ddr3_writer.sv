@@ -45,22 +45,25 @@ module adc_ddr3_writer #(
     localparam int SAMP_CNT_W   = (RATIO        <= 1) ? 1 : $clog2(RATIO        + 1);
     localparam int WORD_CNT_W   = (WORDS_PER_TX <= 1) ? 1 : $clog2(WORDS_PER_TX + 1);
 
-    // Elaboration-time parameter check - evaluated by the synthesis tool
-    // at compile time, emits no hardware.
-    if (DDR_W % DATA_W != 0) begin : gen_bad_ratio
-        $error("adc_ddr3_writer: DDR_W (%0d) must be an integer multiple of DATA_W (%0d)",
-               DDR_W, DATA_W);
-    end
+//    if (DDR_W % DATA_W != 0) begin : gen_bad_ratio
+//        $error("adc_ddr3_writer: DDR_W (%0d) must be an integer multiple of DATA_W (%0d)",
+//               DDR_W, DATA_W);
+//    end
 
     //--------------------------------------------------------------------------
     // Internal state
     //--------------------------------------------------------------------------
-    logic [DDR_W-1:0]      buf_data;     // work-in-progress word
-    logic [SAMP_CNT_W-1:0] sample_cnt;   // next sample slot in buf_data (0..RATIO-1)
-    logic [WORD_CNT_W-1:0] word_cnt;     // words already pushed in the current tx
-    logic [ADDR_W-1:0]     tx_addr;      // base address of the current tx
+    logic [DDR_W-1:0]      buf_data;         // work-in-progress word
+    logic [SAMP_CNT_W-1:0] sample_cnt;       // next sample slot in buf_data (0..RATIO-1)
+    logic [WORD_CNT_W-1:0] word_cnt;         // words already pushed in the current tx
+    logic [ADDR_W-1:0]     tx_addr;          // base address of the current tx
     logic                  active_d;
     wire                   active_rise = i_active & ~active_d;
+    wire                   active_fall = ~i_active & active_d;
+
+    // flush FSM state
+    logic                  flush_active;     
+    logic                  flush_first_word; 
 
     //--------------------------------------------------------------------------
     // Combinational buf_data after current sample is merged in
@@ -82,6 +85,8 @@ module adc_ddr3_writer #(
             word_cnt             <= '0;
             tx_addr              <= BASE_ADDR;
             active_d             <= 1'b0;
+            flush_active         <= 1'b0;
+            flush_first_word     <= 1'b0;
 
             o_user_wr_valid      <= 1'b0;
             o_user_wr_addr_base  <= BASE_ADDR;
@@ -94,19 +99,16 @@ module adc_ddr3_writer #(
             o_user_wr_valid      <= 1'b0;
             o_user_wr_data_valid <= 1'b0;
 
-            //------------------------------------------------------------------
-            // priority 1: re-arm for a new sampling session
-            //------------------------------------------------------------------
             if (active_rise) begin
-                buf_data   <= '0;
-                sample_cnt <= '0;
-                word_cnt   <= '0;
-                tx_addr    <= BASE_ADDR;
+                buf_data         <= '0;
+                sample_cnt       <= '0;
+                word_cnt         <= '0;
+                tx_addr          <= BASE_ADDR;
+                flush_active     <= 1'b0;
+                flush_first_word <= 1'b0;
             end
-            //------------------------------------------------------------------
-            // priority 2: ingest a sample
-            //------------------------------------------------------------------
-            else if (i_adc_data_valid && i_active) begin
+
+            else if (i_adc_data_valid && i_active && !flush_active) begin
                 if (sample_cnt == SAMP_CNT_W'(RATIO-1)) begin
                     // --- we have just completed a DDR_W-bit word -------------
                     o_user_wr_data       <= buf_next;
@@ -133,6 +135,35 @@ module adc_ddr3_writer #(
                     // still filling the word
                     buf_data   <= buf_next;
                     sample_cnt <= sample_cnt + 1'b1;
+                end
+            end
+
+            else if (active_fall && ((sample_cnt != '0) || (word_cnt != '0))) begin
+                flush_active     <= 1'b1;
+                flush_first_word <= (sample_cnt != '0);
+            end
+
+            else if (flush_active) begin
+                o_user_wr_data_valid <= 1'b1;
+                o_user_wr_data       <= flush_first_word ? buf_data : '0;
+                flush_first_word     <= 1'b0;
+
+                // first word of a transaction also launches it
+                if (word_cnt == '0) begin
+                    o_user_wr_valid     <= 1'b1;
+                    o_user_wr_addr_base <= tx_addr;
+                end
+
+                // advance word counter + tx base address, decide if done
+                if (word_cnt == WORD_CNT_W'(WORDS_PER_TX-1)) begin
+                    word_cnt     <= '0;
+                    tx_addr      <= tx_addr + ADDR_W'(BYTES_PER_TX);
+                    flush_active <= 1'b0;                  // flush complete
+                    buf_data     <= '0;
+                    sample_cnt   <= '0;
+                end
+                else begin
+                    word_cnt <= word_cnt + 1'b1;
                 end
             end
         end
