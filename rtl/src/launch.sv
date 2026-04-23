@@ -38,7 +38,7 @@ module launch
 
     logic [NUM_DC_CHANNEL-1:0] r_dc_active_mask;
     logic r_use_trigger;
-    logic r_iters;
+    logic [LCH_ITER_WIDTH-1:0] r_iters;
 
     logic w_all_ready;
 

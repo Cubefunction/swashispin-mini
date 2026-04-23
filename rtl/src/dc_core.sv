@@ -275,7 +275,7 @@ module dc_core
                 r_cycles_left: s.r_sbuf.r_hold_cycles,
                 r_marker: s.r_sbuf.r_marker,
                 r_done: !s.r_sbuf.r_strb_ldac && (s.r_sbuf.r_hold_cycles == 'd0)
-            } : {
+            } : '{
                 r_addr: 'bx,
                 r_iter: 'bx,
                 r_spi_din: 'bx,

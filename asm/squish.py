@@ -54,6 +54,8 @@ MAX_CTRL       = (1 << CTRL_BITS) - 1
 MAX_REPEAT     = (1 << REPEAT_BITS) - 1
 DC_CHANNELS    = 24
 DC_DEPTH       = 512  # max instructions per channel
+SIM_BIT_NS     = 1085              # localparam bit_duration in simulator2.sv
+SIM_FRAME_NS   = 10 * SIM_BIT_NS  # start + 8 data + stop bits per UART byte
 
 # ── Global register map ──────────────────────────────────────────────────────
 # These are shared across all channels; channel selection via strobe bit[n].
@@ -780,7 +782,7 @@ def read_via_sim(channel: int, sock_path: str = '/tmp/tb_cmd.sock') -> None:
 
     Protocol per register read:
       1. Send op byte  0x80|(WRITE_REGS+ro_offset)  via the UART byte command
-      2. Send "read"   — simulator calls pc_recv×4 and streams back "0x%08x"
+      2. Wait — simulator's forever block catches the 4 DUT TX bytes and streams back "0x%08x"
     Write registers (addresses 0..WRITE_REGS-1) can also be read back the same way.
     """
     import socket as _socket
@@ -806,7 +808,7 @@ def read_via_sim(channel: int, sock_path: str = '/tmp/tb_cmd.sock') -> None:
     def uart_read(rregs_addr: int) -> int:
         """Read r_regs[rregs_addr] (write or read-only reg) via UART read op."""
         send_byte(0x80 | rregs_addr)
-        fp.write("read\n")
+        fp.write(f"run {5 * SIM_FRAME_NS}\n")  # 1 byte out + 4 bytes back
         fp.flush()
         return int(rp.readline().strip(), 16)
 

@@ -215,6 +215,18 @@ module simulator;
     endtask
 
     initial begin
+        logic [31:0] w_read_val;
+        string read_str;
+        forever begin
+            pc_recv; pc_recv; pc_recv; pc_recv;
+            w_read_val = {pc_received[$-3], pc_received[$-2], pc_received[$-1], pc_received[$]};
+            $display("read: 0x%08x", w_read_val);
+            read_str = $sformatf("0x%08x", w_read_val);
+            rc = cmd_send_line(read_str);
+        end
+    end
+
+    initial begin
         rc = cmd_open("/tmp/tb_cmd.sock");
         if (rc != 0) $fatal("cmd_open failed");
 
@@ -233,15 +245,6 @@ module simulator;
                 end
                 else if ($sscanf(line, "run %d", t) == 1) begin
                     repeat (t/10) @(negedge w_clk);
-                end
-                else if (line == "read") begin
-                    logic [31:0] w_read_val;
-                    string read_str;
-                    pc_recv; pc_recv; pc_recv; pc_recv;
-                    w_read_val = {pc_received[$-3], pc_received[$-2], pc_received[$-1], pc_received[$]};
-                    $display("read: 0x%08x", w_read_val);
-                    read_str = $sformatf("0x%08x", w_read_val);
-                    rc = cmd_send_line(read_str);
                 end
                 else begin
                     $display("Unknown command: %s", line);
