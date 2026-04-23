@@ -58,7 +58,8 @@ module top
         .i_rx(i_rx),
         .o_tx(o_tx),
         .i_dvsr(11'd6),
-        .o_regs(w_regs)
+        .o_regs(w_regs),
+        .i_regs()
     );
 
     logic [0:NUM_DC_CHANNEL-1] w_dc_sclk_bus;

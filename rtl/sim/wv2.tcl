@@ -5,8 +5,9 @@ wvAddGroup -win $nw {launch}
 wvAddGroup -win $nw {v}
 
 wvSetPosition -win $nw {("v" 0)}
-wvAddSignal -win $nw "simulator/vdc\[0:23\]" \
-                     "simulator/vdc_digital\[0:23\]\[19:0\]"
+wvAddSignal -win $nw "simulator/vdc" \
+                     "simulator/vdc_digital" \
+                     "simulator/w_marker_bus"
 
 wvCollapseGroup -win $nw "v"
 
@@ -18,19 +19,21 @@ wvAddSubGroup -win $nw "LCH"
 wvSelectGroup -win $nw "launch/LCH"
 wvAddSubGroup -win $nw "start"
 wvAddSubGroup -win $nw "armed"
-wvAddSubGroup -win $nw "new"
+wvAddSubGroup -win $nw "strb"
 
 wvSetPosition -win $nw {("launch/LCH" 0)}
 wvAddSignal -win $nw "/simulator/PROCESSOR/LCH/i_clk" \
                      "/simulator/PROCESSOR/LCH/i_rst" \
                      "/simulator/PROCESSOR/LCH/r_state" \
                      "/simulator/PROCESSOR/LCH/w_next_state" \
-                     "/simulator/PROCESSOR/LCH/r_dc_active_mask"
+                     "/simulator/PROCESSOR/LCH/r_dc_active_mask" \
+                     "/simulator/PROCESSOR/LCH/r_use_trigger" \
+                     "/simulator/PROCESSOR/LCH/r_iters"
 
-wvSetPosition -win $nw {("launch/LCH/new" 0)}
+wvSetPosition -win $nw {("launch/LCH/strb" 0)}
 wvAddSignal -win $nw "/simulator/PROCESSOR/LCH/i_regs" \
                      "/simulator/PROCESSOR/LCH/w_new_ctrl" \
-                     "/simulator/PROCESSOR/LCH/w_start"
+                     "/simulator/PROCESSOR/LCH/w_clear"
 
 wvSetPosition -win $nw {("launch/LCH/armed" 0)}
 wvAddSignal -win $nw "/simulator/PROCESSOR/LCH/i_trigger" \
@@ -40,9 +43,10 @@ wvAddSignal -win $nw "/simulator/PROCESSOR/LCH/i_trigger" \
                      "/simulator/PROCESSOR/LCH/w_all_ready"
 
 wvSetPosition -win $nw {("launch/LCH/start" 0)}
-wvAddSignal -win $nw "/simulator/PROCESSOR/LCH/o_dc_start"
+wvAddSignal -win $nw "/simulator/PROCESSOR/LCH/w_start" \
+                     "/simulator/PROCESSOR/LCH/o_dc_start"
 
-wvCollapseGroup -win $nw "launch/LCH/new"
+wvCollapseGroup -win $nw "launch/LCH/strb"
 wvCollapseGroup -win $nw "launch/LCH/armed"
 wvCollapseGroup -win $nw "launch/LCH/start"
 wvCollapseGroup -win $nw "launch/LCH"
@@ -167,15 +171,25 @@ for {set ch 23} {$ch >= 0} {incr ch -1} {
     wvAddSubGroup -win $nw "insn"
     wvAddSubGroup -win $nw "pc"
     wvAddSubGroup -win $nw "ist"
+    wvAddSubGroup -win $nw "ild"
 
     wvSetPosition -win $nw [format {("dc/ch%d/SEQ" 0)} $ch]
     wvAddSignal -win $nw "$dc/SEQ/i_clk" \
                          "$dc/SEQ/i_rst" \
                          "$dc/SEQ/w_propagate" \
                          "$dc/SEQ/o_active" \
+                         "$dc/SEQ/o_iters" \
+                         "$dc/SEQ/o_depth"
+
+    wvSetPosition -win $nw [format {("dc/ch%d/SEQ/ild" 0)} $ch]
+    wvAddSignal -win $nw "$dc/SEQ/w_ildst_addr" \
+                         "$dc/SEQ/w_ild_strb" \
+                         "$dc/SEQ/w_ild_rd" \
+                         "$dc/SEQ/w_imem_rd_addr" \
+                         "$dc/SEQ/w_imem_rd_data"
 
     wvSetPosition -win $nw [format {("dc/ch%d/SEQ/ist" 0)} $ch]
-    wvAddSignal -win $nw "$dc/SEQ/w_ist_addr" \
+    wvAddSignal -win $nw "$dc/SEQ/w_ildst_addr" \
                          "$dc/SEQ/w_ist" \
                          "$dc/SEQ/w_ist_strb" \
                          "$dc/SEQ/w_ist_wr" \
@@ -191,7 +205,9 @@ for {set ch 23} {$ch >= 0} {incr ch -1} {
                          "$dc/SEQ/p"
 
     wvSetPosition -win $nw [format {("dc/ch%d/SEQ/insn" 0)} $ch]
-    wvAddSignal -win $nw "$dc/SEQ/i"
+    wvAddSignal -win $nw "$dc/SEQ/i" \
+                         "$dc/SEQ/w_imem_rd_addr" \
+                         "$dc/SEQ/w_imem_rd_data"
 
     wvSetPosition -win $nw [format {("dc/ch%d/SEQ/out" 0)} $ch]
     wvAddSignal -win $nw "$dc/SEQ/o_pc" \
@@ -244,6 +260,7 @@ for {set ch 23} {$ch >= 0} {incr ch -1} {
 
     wvSetPosition -win $nw [format {("dc/ch%d/CORE/hold" 0)} $ch]
     wvAddSignal -win $nw "$dc/CORE/h" \
+                         "$dc/CORE/o_marker" \
                          "$dc/CORE/o_eop"
 
     # ── CTRL (dc_ctrl) ────────────────────────────────────────────────────────
@@ -259,9 +276,6 @@ for {set ch 23} {$ch >= 0} {incr ch -1} {
 
     wvSetPosition -win $nw [format {("dc/ch%d/CTRL/new" 0)} $ch]
     wvAddSignal -win $nw "$dc/CTRL/i_regs" \
-                         "$dc/CTRL/w_last0" \
-                         "$dc/CTRL/w_last0_ff1" \
-                         "$dc/CTRL/w_last0_ff2" \
                          "$dc/CTRL/w_new_ctrl"
 
     # ── DAC (ad5791) ──────────────────────────────────────────────────────────
@@ -307,6 +321,7 @@ for {set ch 23} {$ch >= 0} {incr ch -1} {
 
 for {set ch 23} {$ch >= 0} {incr ch -1} {
 
+    wvCollapseGroup -win $nw "dc/ch$ch/SEQ/ild"
     wvCollapseGroup -win $nw "dc/ch$ch/SEQ/ist"
     wvCollapseGroup -win $nw "dc/ch$ch/SEQ/pc"
     wvCollapseGroup -win $nw "dc/ch$ch/SEQ/out"

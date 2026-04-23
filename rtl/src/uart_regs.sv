@@ -9,7 +9,9 @@ module uart_regs
      parameter TX_FIFO_DEPTH=8,
      parameter TX_FIFO_AF_DEPTH=6,
      parameter TX_FIFO_AE_DEPTH=2,
-     parameter NUM_REGS=54)
+     parameter NUM_WRITE_REGS=10,
+     parameter NUM_READ_REGS=10,
+     parameter NUM_REGS=NUM_WRITE_REGS+NUM_READ_REGS)
     (input  logic i_clk,
      input  logic i_rst,
 
@@ -18,13 +20,23 @@ module uart_regs
 
      input  logic [10:0] i_dvsr,
 
-     output logic [0:NUM_REGS-1][31:0] o_regs);
+     output logic [0:NUM_WRITE_REGS-1][31:0] o_regs,
+     input  logic [0:NUM_READ_REGS-1][31:0] i_regs);
 
     logic [6:0] w_addr;
     logic [31:0] r_regs [NUM_REGS];
 
-    for (genvar i = 0; i < NUM_REGS; i++) begin : O_REGS_GEN
+    for (genvar i = 0; i < NUM_WRITE_REGS; i++) begin : WR_REGS_GEN
         assign o_regs[i] = r_regs[i];
+    end
+
+    for (genvar i = 0; i < NUM_READ_REGS; i++) begin : RD_REGS_GEN
+        always_ff @(posedge i_clk) begin
+            if (i_rst) 
+                r_regs[NUM_WRITE_REGS + i] <= 32'h0;
+            else 
+                r_regs[NUM_WRITE_REGS + i] <= i_regs[i];
+        end
     end
 
     /******
@@ -101,10 +113,10 @@ module uart_regs
             r_wr_data <= {r_wr_data[23:0], w_rxq_data};
     end
 
-    for (genvar i = 0; i < NUM_REGS; i++) begin : WR_GEN
+    for (genvar i = 0; i < NUM_WRITE_REGS; i++) begin : WR_GEN
         always_ff @(posedge i_clk) begin
             if (i_rst)
-                r_regs[i] <= 32'hDEADC0DE;
+                r_regs[i] <= 32'h0;
             else if (w_wr && w_addr == i)
                 r_regs[i] <= r_wr_data;
         end

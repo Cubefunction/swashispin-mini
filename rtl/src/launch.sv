@@ -6,32 +6,55 @@ module launch
    #(parameter NUM_DC_CHANNEL=24)
     (input  logic i_clk, i_rst,
 
-     input  logic [0:LCH_TOTAL_REGS-1][31:0] i_regs,
+     input  logic [0:LCH_CTRL_REGS-1][31:0] i_regs,
 
      input  logic [NUM_DC_CHANNEL-1:0] i_dc_armed,
 
      input  logic i_trigger,
 
+     output logic [LCH_ITER_WIDTH-1:0] o_iters,
+
      output logic [NUM_DC_CHANNEL-1:0] o_dc_start);
 
     logic w_new_ctrl;
 
-    edge_detector IWR (
+    edge_detector NC (
         .i_clk(i_clk),
         .i_rst(i_rst),
-        .i_signal(i_regs[LCH_TOTAL_REGS-1][0]),
+        .i_signal(i_regs[LCH_CTRL_REGS-1][0]),
         .o_posedge(w_new_ctrl),
         .o_negedge()
     );
 
+    logic w_clear;
+
+    edge_detector CLR (
+        .i_clk(i_clk),
+        .i_rst(i_rst),
+        .i_signal(i_regs[LCH_CTRL_REGS-2][0]),
+        .o_posedge(w_clear),
+        .o_negedge()
+    );
+
     logic [NUM_DC_CHANNEL-1:0] r_dc_active_mask;
+    logic r_use_trigger;
+    logic r_iters;
+
+    logic w_all_ready;
 
     always_ff @(posedge i_clk) begin
-        if (i_rst) begin
+        if (i_rst || w_clear) begin
             r_dc_active_mask <= 'h0;
+            r_use_trigger <= 1'b0;
+            r_iters <= 'h0;
         end
         else if (w_new_ctrl) begin
             r_dc_active_mask <= i_regs[0][NUM_DC_CHANNEL-1:0];
+            r_use_trigger <= i_regs[1][0];
+            r_iters <= i_regs[2][LCH_ITER_WIDTH-1:0];
+        end
+        else if (w_all_ready) begin
+            r_iters <= (r_iters > 'd0) ? (r_iters - 'd1) : r_iters;
         end
     end
 
@@ -52,11 +75,11 @@ module launch
     enum {IDLE, LAUNCH} r_state, w_next_state;
 
     always_ff @(posedge i_clk) begin
-        r_state <= i_rst ? IDLE : w_next_state;
+        r_state <= (i_rst || w_clear) ? IDLE : w_next_state;
     end
 
-    logic w_all_ready;
-    assign w_all_ready = (r_state == LAUNCH) && w_dc_ready && i_trigger;
+    assign w_all_ready = (r_state == LAUNCH) && w_dc_ready && 
+        ((r_use_trigger && i_trigger) || !r_use_trigger);
 
     logic w_start;
     always_ff @(posedge i_clk) begin
@@ -77,7 +100,7 @@ module launch
 
         case (r_state)
             IDLE: begin
-                w_next_state = w_new_ctrl ? LAUNCH : IDLE;
+                w_next_state = (r_iters > 'd0) ? LAUNCH : IDLE;
             end
             default: begin
                 w_next_state = w_all_ready ? IDLE : LAUNCH;
@@ -86,5 +109,7 @@ module launch
         endcase
 
     end
+
+    assign o_iters = r_iters;
 
 endmodule

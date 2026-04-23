@@ -7,15 +7,15 @@ parameter DC_DELTA_WIDTH=16;
 parameter DC_SPI_DATA_WIDTH=24;
 parameter DC_CYCLE_WIDTH=18;
 parameter DC_SEQ_ITER_WIDTH=10;
-parameter DC_CORE_ITER_WIDTH=10;
+parameter DC_CORE_ITER_WIDTH=8;
 parameter DC_SPI_DVSR_WIDTH=16;
 parameter DC_SPI_DELAY_WIDTH=16;
 parameter DC_SPI_CS_UP_WIDTH=16;
 parameter DC_SPI_LDAC_WIDTH=16;
 parameter DC_DEPTH=512;
-parameter DC_INSN_WIDTH=DC_CORE_ITER_WIDTH+DC_SPI_DATA_WIDTH+DC_DELTA_WIDTH+DC_CYCLE_WIDTH+4;
+parameter DC_INSN_WIDTH=DC_CORE_ITER_WIDTH+DC_SPI_DATA_WIDTH+DC_DELTA_WIDTH+DC_CYCLE_WIDTH+6;
 parameter DC_REG_PER_INSN=(DC_INSN_WIDTH+31)/32;
-parameter DC_SEQ_REGS=DC_REG_PER_INSN+6;
+parameter DC_SEQ_REGS=DC_REG_PER_INSN+7;
 parameter DC_CTRL_REGS=4+1;
 
 typedef struct packed {
@@ -33,7 +33,9 @@ typedef struct packed {
     logic [DC_CYCLE_WIDTH-1:0] w_hold_cycles;
     logic w_modify;
     logic w_arm;
+    logic w_sticky_arm;
     logic w_idle;
+    logic w_marker;
 } dc_insn_t;
 
 typedef struct {
@@ -46,6 +48,7 @@ typedef struct {
     logic w_modify;
     logic w_arm;
     logic w_idle;
+    logic w_marker;
 } dc_decode_stg_t;
 
 typedef struct {
@@ -57,6 +60,7 @@ typedef struct {
     logic [DC_CYCLE_WIDTH-1:0] r_hold_cycles;
     logic r_arm;
     logic r_idle;
+    logic r_marker;
     logic r_bubble;
 } dc_iterate_stg_t;
 
@@ -68,6 +72,7 @@ typedef struct {
     logic r_strb_ldac;
     logic [DC_CYCLE_WIDTH-1:0] r_hold_cycles;
     logic r_arm;
+    logic r_marker;
     logic [DC_SPI_DELAY_WIDTH-1:0] r_delay_cycles;
     logic [DC_SPI_CS_UP_WIDTH-1:0] r_cs_up_cycles;
     logic r_cs_n;
@@ -82,6 +87,7 @@ typedef struct {
     logic [DC_CORE_ITER_WIDTH-1:0] r_iter;
     logic [DC_CYCLE_WIDTH-1:0] r_hold_cycles;
     logic r_arm;
+    logic r_marker;
 } dc_idle_t;
 
 typedef struct {
@@ -96,6 +102,7 @@ typedef struct {
     logic [DC_SPI_LDAC_WIDTH-1:0] r_ldac_cycles;
     logic r_ldac_n;
     logic [DC_CYCLE_WIDTH-1:0] r_cycles_left;
+    logic r_marker;
     logic r_done;
 } dc_hold_stg_t;
 
@@ -106,6 +113,7 @@ typedef struct packed {
     logic [DC_SPI_DATA_WIDTH-1:0] w_spi_din;
     logic [DC_SPI_LDAC_WIDTH-1:0] w_ldac_cycles;
     logic [DC_CYCLE_WIDTH-1:0] w_cycles_left;
+    logic w_marker;
 } dc_eop_t;
 
 `endif

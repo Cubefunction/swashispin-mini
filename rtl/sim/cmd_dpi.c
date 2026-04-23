@@ -141,3 +141,16 @@ int cmd_getline(const svOpenArrayHandle line_buf)
     out[pos] = 0;
     return 1;
 }
+
+// Send a line back to the client (appends '\n')
+// Returns 0 on success, -1 on error
+int cmd_send_line(const char *s)
+{
+    if (conn_fd < 0) return -1;
+
+    size_t len = strlen(s);
+    ssize_t r = write(conn_fd, s, len);
+    if (r != (ssize_t)len) return -1;
+    r = write(conn_fd, "\n", 1);
+    return (r == 1) ? 0 : -1;
+}

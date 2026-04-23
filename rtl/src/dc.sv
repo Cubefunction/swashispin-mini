@@ -21,11 +21,18 @@ module dc
      input  logic [0:SEQ_REGS-1][31:0] i_seq_regs,
      input  logic [0:CTRL_REGS-1][31:0] i_ctrl_regs,
 
+     output logic [INSN_WIDTH-1:0] o_insn_rd,
+
+     output logic [SEQ_ITER_WIDTH-1:0] o_iters,
+     output logic [$clog2(DEPTH)-1:0] o_depth,
+
      output logic o_sclk,
      output logic o_mosi,
      input  logic i_miso,
      output logic o_cs_n,
      output logic o_ldac_n,
+
+     output logic o_marker,
 
      input  logic i_start,
      output logic o_armed,
@@ -48,8 +55,11 @@ module dc
         .i_rst(i_rst),
 
         .i_regs(i_seq_regs),
+        .o_insn_rd(o_insn_rd),
 
         .o_active(),
+        .o_iters(o_iters),
+        .o_depth(o_depth),
 
         .o_pc(w_addr),
         .o_insn(w_insn),
@@ -81,6 +91,8 @@ module dc
         .i_miso(i_miso),
         .o_cs_n(o_cs_n),
         .o_ldac_n(o_ldac_n),
+
+        .o_marker(o_marker),
 
         .i_start(i_start),
         .o_armed(o_armed),

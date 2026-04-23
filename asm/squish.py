@@ -22,8 +22,9 @@ Assembly syntax (unchanged from C assembler):
     .launch
     <dc_chmask_hex>
 
-Options in (): arm  rd  ldc  v+<voltage>
+Options in (): arm  rd  ldc  v+<voltage>  mk  srm
 Time units: ns us ms s
+    -r dc<N>   read back BRAM instructions and runtime status for channel N (sim only)
 """
 
 import argparse
@@ -40,9 +41,9 @@ VMAX           =  10.0
 DAC_BITS       = 20
 DELTA_BITS     = 16
 CYCLE_BITS     = 18
-INSN_ITER_BITS = 10   # per-instruction iteration counter width
+INSN_ITER_BITS = 8    # per-instruction iteration counter width
 SPI_DATA_BITS  = 24
-INSN_WIDTH     = 72   # INSN_ITER_BITS + SPI_DATA_BITS + DELTA_BITS + CYCLE_BITS + 4
+INSN_WIDTH     = 72   # INSN_ITER_BITS + SPI_DATA_BITS + DELTA_BITS + CYCLE_BITS + 6
 REG_PER_INSN   = 3    # ceil(72/32)
 NS_PER_CYCLE   = 10
 MAX_HOLD_CYCLES = (1 << CYCLE_BITS) - 1
@@ -56,22 +57,35 @@ DC_DEPTH       = 512  # max instructions per channel
 
 # ── Global register map ──────────────────────────────────────────────────────
 # These are shared across all channels; channel selection via strobe bit[n].
-IST_ADDR_REG   = 0   # BRAM write address (9-bit)
+IST_ADDR_REG   = 0   # BRAM write/load address (9-bit)
 IST_REG_LO     = 1   # insn[71:64] in bits [7:0] of this register
                       # insn[63:32] goes in reg 2
 IST_REG_HI     = 3   # insn[31:0]
 IST_STRB_REG   = 4   # posedge of bit[n] → write to channel n BRAM
-ITERS_REG      = 5   # outer sequence repeat count (16-bit)
-DEPTH_REG      = 6   # num_instructions - 1 (9-bit)
-START_STRB_REG = 7   # posedge of bit[n] → start channel n
-HALT_STRB_REG  = 8   # posedge of bit[n] → halt channel n
-CTRL_DVSR_REG  = 9
-CTRL_DELAY_REG = 10
-CTRL_CSUP_REG  = 11
-CTRL_LDAC_REG  = 12
-CTRL_STRB_REG  = 13  # posedge of bit[n] → apply ctrl to channel n
-LCH_MASK_REG   = 14  # launch DC channel mask
-LCH_STRB_REG   = 15  # posedge of bit 0 → trigger launch
+ILD_STRB_REG   = 5   # level bit[n]=1 → mux channel n insn_rd; posedge → latch BRAM[addr]
+ITERS_REG      = 6   # outer sequence repeat count (16-bit)
+DEPTH_REG      = 7   # num_instructions - 1 (9-bit)
+START_STRB_REG = 8   # posedge of bit[n] → start channel n
+HALT_STRB_REG  = 9   # posedge of bit[n] → halt channel n
+CTRL_DVSR_REG  = 10
+CTRL_DELAY_REG = 11
+CTRL_CSUP_REG  = 12
+CTRL_LDAC_REG  = 13
+CTRL_STRB_REG  = 14  # posedge of bit[n] → apply ctrl to channel n
+
+# Read-only register base address in r_regs[] = WRITE_REGS + o_regs offset
+WRITE_REGS     = 23  # DC_SEQ_REGS(10)+DC_CTRL_REGS(5)+LCH_CTRL_REGS(5)+MARKER(3)
+RO_ILD_BASE    = 0   # 3-reg instruction readout slot (muxed by ILD_STRB_REG level)
+RO_EMPTY_REG   = 3   # bit[n] = channel n empty
+RO_ARMED_REG   = 4   # bit[n] = channel n armed
+RO_ITERS_BASE  = 5   # per-channel runtime iters remaining (10-bit), one reg each
+RO_DEPTH_BASE  = 29  # per-channel depth latched at start (9-bit), one reg each
+RO_LCH_ITERS   = 53  # launch controller iters remaining (32-bit)
+LCH_MASK_REG   = 15  # i_regs[0]: launch DC channel mask
+LCH_TRIG_REG   = 16  # i_regs[1]: use_trigger flag (0 = free-running)
+LCH_ITERS_REG  = 17  # i_regs[2]: launch iteration count (32-bit)
+LCH_CLR_REG    = 18  # i_regs[3]: clear strobe
+LCH_STRB_REG   = 19  # i_regs[4]: new_ctrl strobe (posedge → apply)
 
 DAC_REG_MAP = {'dr': 1, 'cr': 2, 'clr': 3, 'scr': 4}
 
@@ -101,6 +115,14 @@ def to_bits(val: int, bits: int) -> int:
     return max(kmin, min(kmax, val)) & ((1 << bits) - 1)
 
 
+def code_to_volt(code: int, bits: int = DAC_BITS,
+                 vmin: float = VMIN, vmax: float = VMAX) -> float:
+    kmin = -(1 << (bits - 1))
+    kmax =  (1 << (bits - 1)) - 1
+    k = code if code < (1 << (bits - 1)) else code - (1 << bits)
+    return vmin + (k - kmin) * (vmax - vmin) / (kmax - kmin)
+
+
 def parse_time(s: str) -> int:
     """Parse '10ns', '1us', '1ms', '1s' → integer nanoseconds."""
     s = s.strip()
@@ -125,24 +147,28 @@ def time_to_cycles(t_ns: int) -> int:
 
 @dataclass
 class DcInsn:
-    iters:       int = 0   # [71:62] 10-bit per-instruction iteration count
-    spi_din:     int = 0   # [61:38] 24-bit: bits[23:20]=DAC reg, bits[19:0]=DAC code
-    delta:       int = 0   # [37:22] 16-bit signed (two's complement bit pattern)
-    strb_ldac:   int = 0   # [21]    1-bit
-    hold_cycles: int = 0   # [20:3]  18-bit
-    modify:      int = 0   # [2]     1-bit: apply delta as secondary DAC output
-    arm:         int = 0   # [1]     1-bit
-    idle:        int = 0   # [0]     1-bit: skip SPI transaction
+    iters:       int = 0   # [71:64] 8-bit per-instruction iteration count
+    spi_din:     int = 0   # [63:40] 24-bit: bits[23:20]=DAC reg, bits[19:0]=DAC code
+    delta:       int = 0   # [39:24] 16-bit signed (two's complement bit pattern)
+    strb_ldac:   int = 0   # [23]    1-bit
+    hold_cycles: int = 0   # [22:5]  18-bit
+    modify:      int = 0   # [4]     1-bit: apply delta as secondary DAC output
+    arm:         int = 0   # [3]     1-bit
+    sticky_arm:  int = 0   # [2]     1-bit: arm that does not get cleared
+    idle:        int = 0   # [1]     1-bit: skip SPI transaction
+    marker:      int = 0   # [0]     1-bit: digital marker output
 
     def encode(self) -> int:
-        v  = (self.iters       & 0x3FF)    << 62
-        v |= (self.spi_din     & 0xFFFFFF) << 38
-        v |= (self.delta       & 0xFFFF)   << 22
-        v |= (self.strb_ldac   & 0x1)      << 21
-        v |= (self.hold_cycles & 0x3FFFF)  << 3
-        v |= (self.modify      & 0x1)      << 2
-        v |= (self.arm         & 0x1)      << 1
-        v |= (self.idle        & 0x1)
+        v  = (self.iters       & 0xFF)     << 64
+        v |= (self.spi_din     & 0xFFFFFF) << 40
+        v |= (self.delta       & 0xFFFF)   << 24
+        v |= (self.strb_ldac   & 0x1)      << 23
+        v |= (self.hold_cycles & 0x3FFFF)  << 5
+        v |= (self.modify      & 0x1)      << 4
+        v |= (self.arm         & 0x1)      << 3
+        v |= (self.sticky_arm  & 0x1)      << 2
+        v |= (self.idle        & 0x1)      << 1
+        v |= (self.marker      & 0x1)
         return v
 
     def to_regs(self) -> tuple[int, int, int]:
@@ -158,10 +184,70 @@ class DcInsn:
         return (v >> 64) & 0xFF, (v >> 32) & 0xFFFFFFFF, v & 0xFFFFFFFF
 
 
+# ── Instruction decode / display ────────────────────────────────────────────
+
+def decode_insn(v: int) -> 'DcInsn':
+    return DcInsn(
+        iters       = (v >> 64) & 0xFF,
+        spi_din     = (v >> 40) & 0xFFFFFF,
+        delta       = (v >> 24) & 0xFFFF,
+        strb_ldac   = (v >> 23) & 0x1,
+        hold_cycles = (v >> 5)  & 0x3FFFF,
+        modify      = (v >> 4)  & 0x1,
+        arm         = (v >> 3)  & 0x1,
+        sticky_arm  = (v >> 2)  & 0x1,
+        idle        = (v >> 1)  & 0x1,
+        marker      = v         & 0x1,
+    )
+
+
+_REG_CODE_TO_NAME = {v: k for k, v in DAC_REG_MAP.items()}
+
+def format_insn(insn: DcInsn) -> str:
+    parts = []
+
+    if insn.idle:
+        parts.append("nop")
+    else:
+        is_rd    = bool((insn.spi_din >> 23) & 1)
+        dac_reg  = (insn.spi_din >> 20) & 0x7
+        dac_code = insn.spi_din & 0xFFFFF
+        reg_name = _REG_CODE_TO_NAME.get(dac_reg, f"r{dac_reg}")
+        if is_rd:
+            parts.append(f"get {reg_name}")
+        elif dac_reg == DAC_REG_MAP['dr']:
+            parts.append(f"v={code_to_volt(dac_code):+.4f}V")
+        else:
+            parts.append(f"set {reg_name} 0x{dac_code:05X}")
+
+    if insn.iters:
+        parts.append(f"its={insn.iters}")
+
+    parts.append(f"t={insn.hold_cycles * NS_PER_CYCLE}ns")
+
+    if insn.delta:
+        delta_s = insn.delta if insn.delta < (1 << (DELTA_BITS - 1)) else insn.delta - (1 << DELTA_BITS)
+        dv_v = delta_s * (VMAX - VMIN) / (1 << DAC_BITS)
+        parts.append(f"dv={dv_v:+.6f}V/step")
+
+    if insn.strb_ldac:
+        parts.append("ldc")
+
+    flags = []
+    if insn.arm:        flags.append("arm")
+    if insn.sticky_arm: flags.append("srm")
+    if insn.marker:     flags.append("mk")
+    if insn.modify:     flags.append("mod")
+    if flags:
+        parts.append(f"({' '.join(flags)})")
+
+    return "  ".join(parts)
+
+
 # ── Option parsing ───────────────────────────────────────────────────────────
 
 def parse_opts(paren: str) -> dict:
-    opts = {'arm': 0, 'rd': 0, 'ldc': 0, 'has_vplus': 0, 'vplus': 0.0}
+    opts = {'arm': 0, 'rd': 0, 'ldc': 0, 'has_vplus': 0, 'vplus': 0.0, 'mk': 0, 'srm': 0}
     for tok in paren.split():
         if tok == 'arm':
             opts['arm'] = 1
@@ -169,6 +255,10 @@ def parse_opts(paren: str) -> dict:
             opts['rd'] = 1
         elif tok == 'ldc':
             opts['ldc'] = 1
+        elif tok == 'mk':
+            opts['mk'] = 1
+        elif tok == 'srm':
+            opts['srm'] = 1
         elif tok.startswith('v+'):
             opts['has_vplus'] = 1
             opts['vplus'] = float(tok[2:])
@@ -179,7 +269,7 @@ def parse_opts(paren: str) -> dict:
 
 def get_opts(line: str) -> dict:
     m = re.search(r'\(([^)]*)\)', line)
-    return parse_opts(m.group(1)) if m else {'arm': 0, 'rd': 0, 'ldc': 0, 'has_vplus': 0, 'vplus': 0.0}
+    return parse_opts(m.group(1)) if m else {'arm': 0, 'rd': 0, 'ldc': 0, 'has_vplus': 0, 'vplus': 0.0, 'mk': 0, 'srm': 0}
 
 
 # ── Instruction parsers ──────────────────────────────────────────────────────
@@ -233,6 +323,8 @@ def parse_swp(line: str) -> DcInsn:
         hold_cycles = time_to_cycles(dt),
         modify      = 0,
         arm         = opts['arm'],
+        sticky_arm  = opts['srm'],
+        marker      = opts['mk'],
     )
 
 
@@ -253,6 +345,8 @@ def parse_lvl(line: str) -> DcInsn:
         hold_cycles = time_to_cycles(t),
         modify      = opts['has_vplus'],
         arm         = opts['arm'],
+        sticky_arm  = opts['srm'],
+        marker      = opts['mk'],
     )
 
 
@@ -270,11 +364,13 @@ def parse_set(line: str) -> DcInsn:
     opts = get_opts(line)
     vplus_delta = to_bits(volt_to_signed(opts['vplus']), DELTA_BITS) if opts['has_vplus'] else 0
     return DcInsn(
-        spi_din   = (DAC_REG_MAP[reg_name] << 20) | (din & 0xFFFFF),
-        delta     = vplus_delta,
-        strb_ldac = opts['ldc'],
-        modify    = opts['has_vplus'],
-        arm       = opts['arm'],
+        spi_din    = (DAC_REG_MAP[reg_name] << 20) | (din & 0xFFFFF),
+        delta      = vplus_delta,
+        strb_ldac  = opts['ldc'],
+        modify     = opts['has_vplus'],
+        arm        = opts['arm'],
+        sticky_arm = opts['srm'],
+        marker     = opts['mk'],
     )
 
 
@@ -287,10 +383,12 @@ def parse_get(line: str) -> DcInsn:
         raise ValueError(f"Unknown DAC register {reg_name!r} in: {line!r}")
     opts = get_opts(line)
     return DcInsn(
-        spi_din   = (1 << 23) | (DAC_REG_MAP[reg_name] << 20),
-        strb_ldac = opts['ldc'],
-        arm       = opts['arm'],
-        idle      = 0,
+        spi_din    = (1 << 23) | (DAC_REG_MAP[reg_name] << 20),
+        strb_ldac  = opts['ldc'],
+        arm        = opts['arm'],
+        sticky_arm = opts['srm'],
+        marker     = opts['mk'],
+        idle       = 0,
     )
 
 
@@ -298,11 +396,13 @@ def parse_nop(line: str) -> DcInsn:
     opts = get_opts(line)
     vplus_delta = to_bits(volt_to_signed(opts['vplus']), DELTA_BITS) if opts['has_vplus'] else 0
     return DcInsn(
-        delta     = vplus_delta,
-        strb_ldac = opts['ldc'],
-        modify    = opts['has_vplus'],
-        arm       = opts['arm'],
-        idle      = 1,
+        delta      = vplus_delta,
+        strb_ldac  = opts['ldc'],
+        modify     = opts['has_vplus'],
+        arm        = opts['arm'],
+        sticky_arm = opts['srm'],
+        marker     = opts['mk'],
+        idle       = 1,
     )
 
 
@@ -335,6 +435,8 @@ def parse_ful(line: str) -> DcInsn:
         strb_ldac   = opts['ldc'],
         modify      = opts['has_vplus'],
         arm         = opts['arm'],
+        sticky_arm  = opts['srm'],
+        marker      = opts['mk'],
     )
 
 
@@ -365,6 +467,7 @@ class DcProgram:
 @dataclass
 class Launch:
     dc_chmask: int = 0
+    iters:     int = 1
 
 
 # ── Assembly file parser ─────────────────────────────────────────────────────
@@ -464,6 +567,11 @@ def parse_asm(text: str) -> tuple[list[DcProgram], Optional[Launch]]:
             launch = Launch()
             rest = m.group(1).strip()
             i += 1
+            # optional iteration count: x<n> as first token
+            x_m = re.match(r'x(\d+)\s*(.*)', rest)
+            if x_m:
+                launch.iters = int(x_m[1])
+                rest = x_m[2].strip()
             if rest:
                 # inline: .launch dc0 dc1 ... or .launch dc0-23
                 mask = 0
@@ -548,7 +656,11 @@ def start_ops(prog: DcProgram) -> Ops:
 
 
 def launch_ops(launch: Launch) -> Ops:
-    ops: Ops = [(LCH_MASK_REG, launch.dc_chmask)]
+    ops: Ops = [
+        (LCH_MASK_REG,  launch.dc_chmask),
+        (LCH_TRIG_REG,  0),
+        (LCH_ITERS_REG, launch.iters),
+    ]
     ops.extend(strobe(LCH_STRB_REG, 1))
     return ops
 
@@ -662,6 +774,85 @@ def send_via_sim(programs: list[DcProgram], launch: Optional[Launch],
     sock.close()
 
 
+def read_via_sim(channel: int, sock_path: str = '/tmp/tb_cmd.sock') -> None:
+    """
+    Read BRAM contents and runtime status for one DC channel from the simulator.
+
+    Protocol per register read:
+      1. Send op byte  0x80|(WRITE_REGS+ro_offset)  via the UART byte command
+      2. Send "read"   — simulator calls pc_recv×4 and streams back "0x%08x"
+    Write registers (addresses 0..WRITE_REGS-1) can also be read back the same way.
+    """
+    import socket as _socket
+
+    sock = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
+    try:
+        sock.connect(sock_path)
+    except FileNotFoundError:
+        sys.exit(f"Simulator socket not found: {sock_path!r} — is the simulator running?")
+    except ConnectionRefusedError:
+        sys.exit(f"Simulator not accepting connections on {sock_path!r}")
+
+    fp = sock.makefile('w', buffering=1)
+    rp = sock.makefile('r', buffering=1)
+
+    def send_byte(b: int) -> None:
+        fp.write(f"0x{b:02X}\n")
+
+    def send_reg(reg: int, data: int) -> None:
+        for b in reg_bytes(reg, data):
+            send_byte(b)
+
+    def uart_read(rregs_addr: int) -> int:
+        """Read r_regs[rregs_addr] (write or read-only reg) via UART read op."""
+        send_byte(0x80 | rregs_addr)
+        fp.write("read\n")
+        fp.flush()
+        return int(rp.readline().strip(), 16)
+
+    def read_wreg(waddr: int) -> int:
+        return uart_read(waddr)
+
+    def read_ro(ro_offset: int) -> int:
+        return uart_read(WRITE_REGS + ro_offset)
+
+    # Determine instruction count.
+    # Prefer per-channel runtime depth (set when sequencer starts);
+    # fall back to shared write register if runtime depth is 0.
+    depth_ch = read_ro(RO_DEPTH_BASE + channel) & 0x1FF
+    depth_wr = read_wreg(DEPTH_REG) & 0x1FF
+    depth_val = depth_ch if depth_ch else depth_wr
+    num_insns = depth_val + 1
+
+    # Read instructions out of BRAM.
+    # ILD_STRB level selects the mux; posedge latches BRAM[ILDST_ADDR] into o_insn_rd.
+    insns = []
+    send_reg(ILD_STRB_REG, 0)          # ensure strobe starts low
+    for addr in range(num_insns):
+        send_reg(IST_ADDR_REG, addr)   # set BRAM read address
+        send_reg(ILD_STRB_REG, 1 << channel)   # posedge: latch + mux select
+        w0 = read_ro(RO_ILD_BASE + 0)  # insn[71:64]
+        w1 = read_ro(RO_ILD_BASE + 1)  # insn[63:32]
+        w2 = read_ro(RO_ILD_BASE + 2)  # insn[31:0]
+        v72 = ((w0 & 0xFF) << 64) | ((w1 & 0xFFFFFFFF) << 32) | (w2 & 0xFFFFFFFF)
+        insns.append(decode_insn(v72))
+        send_reg(ILD_STRB_REG, 0)      # clear for next posedge
+
+    # Runtime status
+    iters_left = read_ro(RO_ITERS_BASE + channel)
+    empty      = bool((read_ro(RO_EMPTY_REG) >> channel) & 1)
+    armed      = bool((read_ro(RO_ARMED_REG) >> channel) & 1)
+
+    fp.close()
+    rp.close()
+    sock.close()
+
+    # Display
+    print(f"dc{channel}  insns={num_insns}  iters_left={iters_left}  armed={int(armed)}  empty={int(empty)}")
+    for idx, insn in enumerate(insns):
+        print(f"  [{idx:3d}]  {format_insn(insn)}")
+
+
 # ── Program timing estimate ──────────────────────────────────────────────────
 
 def estimate_ns(programs: list[DcProgram]) -> int:
@@ -692,7 +883,17 @@ def main() -> None:
                     help='Baud rate for -x (default 921600)')
     ap.add_argument('-s', metavar='SOCK', nargs='?', const='/tmp/tb_cmd.sock',
                     help='Simulate via RTL socket (default /tmp/tb_cmd.sock)')
+    ap.add_argument('-r', metavar='CHANNEL',
+                    help='Read channel state from simulator, e.g. dc0')
     args = ap.parse_args()
+
+    if args.r:
+        m = re.match(r'dc(\d+)$', args.r)
+        if not m:
+            sys.exit(f"-r: expected dc<N>, got {args.r!r}")
+        sock_path = args.s if args.s else '/tmp/tb_cmd.sock'
+        read_via_sim(int(m[1]), sock_path=sock_path)
+        return
 
     if not args.f:
         ap.print_help()

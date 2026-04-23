@@ -6,13 +6,16 @@
 import "DPI-C" function int cmd_open(input string path);
 import "DPI-C" function int cmd_accept_poll(input int timeout_ms);
 import "DPI-C" function int cmd_getline(output byte unsigned line_buf[]);
+import "DPI-C" function int cmd_send_line(input string s);
 
 module simulator;
 
     // define number of dc/li channels
     localparam NUM_DC_CHANNEL=24;
+    localparam NUM_MARKER_CHANNEL=3;
 
-    localparam TOTAL_REGS=DC_SEQ_REGS+DC_CTRL_REGS+LCH_TOTAL_REGS;
+    localparam WRITE_REGS=DC_SEQ_REGS+DC_CTRL_REGS+LCH_CTRL_REGS+NUM_MARKER_CHANNEL;
+    localparam READ_REGS=DC_REG_PER_INSN+2+NUM_DC_CHANNEL*2+1;
 
     /********************
     * signal declaration
@@ -23,7 +26,8 @@ module simulator;
 
     // data transmit
     logic w_rx, w_tx;
-    logic [0:TOTAL_REGS-1][31:0] w_regs;
+    logic [0:WRITE_REGS-1][31:0] w_exe_regs;
+    logic [0:READ_REGS-1][31:0] w_ro_regs;
 
     // dc spi bus
     logic [0:NUM_DC_CHANNEL-1] w_dc_sclk_bus;
@@ -33,6 +37,9 @@ module simulator;
     logic [0:NUM_DC_CHANNEL-1] w_dc_ldac_n_bus;
 
     logic [0:NUM_DC_CHANNEL-1] w_dc_empty_bus;
+
+    // marker bus
+    logic [0:NUM_MARKER_CHANNEL-1] w_marker_bus;
 
     // dc voltage output
     logic [DC_DAC_WIDTH-1:0] vdc_digital [NUM_DC_CHANNEL];
@@ -50,14 +57,16 @@ module simulator;
         .TX_FIFO_DEPTH(8),
         .TX_FIFO_AF_DEPTH(6),
         .TX_FIFO_AE_DEPTH(2),
-        .NUM_REGS(TOTAL_REGS)
+        .NUM_WRITE_REGS(WRITE_REGS),
+        .NUM_READ_REGS(READ_REGS)
     ) REGS (
         .i_clk(w_clk),
         .i_rst(w_rst),
         .i_rx(w_rx),
         .o_tx(w_tx),
         .i_dvsr(11'd6),
-        .o_regs(w_regs)
+        .o_regs(w_exe_regs),
+        .i_regs(w_ro_regs)
     );
 
 
@@ -67,8 +76,8 @@ module simulator;
         .i_clk(w_clk),
         .i_rst(w_rst),
 
-        // dc
-        .i_regs(w_regs),
+        .i_regs(w_exe_regs),
+        .o_regs(w_ro_regs),
 
         .o_dc_sclk_bus(w_dc_sclk_bus),
         .o_dc_mosi_bus(w_dc_mosi_bus),
@@ -78,7 +87,11 @@ module simulator;
 
         .o_dc_armed_bus(),
         .o_dc_empty_bus(w_dc_empty_bus),
-        .o_dc_eop_bus()
+        .o_dc_eop_bus(),
+
+        .i_async_trigger(1'b1),
+
+        .o_marker_bus(w_marker_bus)
     );
 
     /*******************
@@ -123,21 +136,25 @@ module simulator;
     * uart tasks
     *************/
 
-    localparam bit_duration = 1085.069;
+    localparam bit_duration = 1085;
     task pc_tsmt(input logic [7:0] data);
         // start bit = 0
         w_rx = 1'b0;
+        $display("time = %0t ns, tsmt start", $time);
         #bit_duration;
 
         // data bits
         for (int i = 0; i < 8; i++) begin
             w_rx = data[i];
+            $display("time = %0t ns, rx = %0b", $time, w_rx);
             #bit_duration;
         end
 
         // end bit = 1
         w_rx = 1'b1;
+        $display("time = %0t ns, rx = 1", $time);
         #bit_duration;
+        $display("time = %0t ns, tsmt done", $time);
     endtask
 
     logic [7:0] pc_received [$];
@@ -147,6 +164,7 @@ module simulator;
 
         // start bit == 0
         @(negedge w_tx);
+        $display("time = %0t ns, w_tx negedge", $time);
         #(bit_duration / 2);
         assert (w_tx == 1'b0)
         else $fatal(1, "At %0.3f ns: o_tx didn't hold start bit as 0", $realtime);
@@ -163,6 +181,7 @@ module simulator;
         else $fatal(1, "At %0.3f ns: o_tx didn't hold stop bit as 1", $realtime);
 
         pc_received.push_back(rx_data);
+        $display("received 0x%0h", rx_data);
 
     endtask
 
@@ -214,6 +233,15 @@ module simulator;
                 end
                 else if ($sscanf(line, "run %d", t) == 1) begin
                     repeat (t/10) @(negedge w_clk);
+                end
+                else if (line == "read") begin
+                    logic [31:0] w_read_val;
+                    string read_str;
+                    pc_recv; pc_recv; pc_recv; pc_recv;
+                    w_read_val = {pc_received[$-3], pc_received[$-2], pc_received[$-1], pc_received[$]};
+                    $display("read: 0x%08x", w_read_val);
+                    read_str = $sformatf("0x%08x", w_read_val);
+                    rc = cmd_send_line(read_str);
                 end
                 else begin
                     $display("Unknown command: %s", line);

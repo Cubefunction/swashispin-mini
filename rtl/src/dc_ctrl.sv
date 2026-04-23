@@ -14,17 +14,15 @@ module dc_ctrl
 
      output dc_ctrl_t o_ctrl);
 
-    logic w_last0, w_last0_ff1, w_last0_ff2;
-
-    assign w_last0 = (i_regs[CTRL_REGS-1] == 'h0);
-
-    always_ff @(posedge i_clk) begin
-        w_last0_ff1 <= w_last0;
-        w_last0_ff2 <= w_last0_ff1;
-    end
-
     logic w_new_ctrl;
-    assign w_new_ctrl = (w_last0_ff2 && !w_last0_ff1);
+
+    edge_detector NC (
+        .i_clk(i_clk),
+        .i_rst(i_rst),
+        .i_signal(i_regs[CTRL_REGS-1][0]),
+        .o_posedge(w_new_ctrl),
+        .o_negedge()
+    );
 
     logic [SPI_DVSR_WIDTH-1:0] r_dvsr;
     logic [SPI_DELAY_WIDTH-1:0] r_delay_cycles;
@@ -33,10 +31,10 @@ module dc_ctrl
 
     always_ff @(posedge i_clk) begin
         if (i_rst) begin
-            r_dvsr <= 'd6;
-            r_delay_cycles <= 'd3;
-            r_cs_up_cycles <= 'd3;
-            r_ldac_cycles <= 'd2;
+            r_dvsr <= 'd1;
+            r_delay_cycles <= 'd1;
+            r_cs_up_cycles <= 'd1;
+            r_ldac_cycles <= 'd1;
         end
         else if (w_new_ctrl) begin
             r_dvsr <= i_regs[0][SPI_DVSR_WIDTH-1:0];

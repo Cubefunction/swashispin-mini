@@ -7,12 +7,15 @@ module serial_sequencer
      parameter REG_PER_INSN=(INSN_WIDTH+31)/32,
      parameter ITER_WIDTH=16,
      parameter DEPTH_WIDTH=PC_WIDTH,
-     parameter SEQ_REGS=REG_PER_INSN+6)
+     parameter SEQ_REGS=REG_PER_INSN+7)
     (input  logic i_clk, i_rst,
 
      input  logic [0:SEQ_REGS-1][31:0] i_regs,
+     output logic [INSN_WIDTH-1:0] o_insn_rd,
 
      output logic o_active,
+     output logic [ITER_WIDTH-1:0] o_iters,
+     output logic [DEPTH_WIDTH-1:0] o_depth,
 
      output logic [PC_WIDTH-1:0] o_pc,
      output logic [INSN_WIDTH-1:0] o_insn,
@@ -26,16 +29,16 @@ module serial_sequencer
     * imem store
     ************/
 
-    localparam IST_ADDR_REG = 0;
-    localparam IST_REG_LO = IST_ADDR_REG + 1;
+    localparam ILDST_ADDR_REG = 0;
+    localparam IST_REG_LO = ILDST_ADDR_REG + 1;
     localparam IST_REG_HI = IST_REG_LO + REG_PER_INSN - 1;
     localparam IST_STRB_REG = IST_REG_HI + 1;
 
-    logic [PC_WIDTH-1:0] w_ist_addr;
+    logic [PC_WIDTH-1:0] w_ildst_addr;
     logic [INSN_WIDTH-1:0] w_ist;
     logic w_ist_strb, w_ist_wr;
 
-    assign w_ist_addr = i_regs[IST_ADDR_REG][PC_WIDTH-1:0];
+    assign w_ildst_addr = i_regs[ILDST_ADDR_REG][PC_WIDTH-1:0];
     assign w_ist = {i_regs[IST_REG_LO:IST_REG_HI]}[INSN_WIDTH-1:0];
     assign w_ist_strb = i_regs[IST_STRB_REG][0];
 
@@ -47,11 +50,29 @@ module serial_sequencer
         .o_negedge()
     );
 
+    /***********
+    * imem load 
+    ***********/
+
+    localparam ILD_STRB_REG = IST_STRB_REG + 1;
+
+    logic w_ild_strb, w_ild_rd;
+
+    assign w_ild_strb = i_regs[ILD_STRB_REG][0];
+
+    edge_detector IRD (
+        .i_clk(i_clk),
+        .i_rst(i_rst),
+        .i_signal(w_ild_strb),
+        .o_posedge(w_ild_rd),
+        .o_negedge()
+    );
+
     /**********
     * pc stage
     **********/
 
-    localparam ITERS_REG = IST_STRB_REG + 1;
+    localparam ITERS_REG = ILD_STRB_REG + 1;
     localparam DEPTH_REG = ITERS_REG + 1;
     localparam START_STRB_REG = DEPTH_REG + 1;
     localparam HALT_STRB_REG = START_STRB_REG + 1;
@@ -122,6 +143,8 @@ module serial_sequencer
     end
 
     assign o_active = p.r_active;
+    assign o_iters = p.r_iters;
+    assign o_depth = p.r_depth;
 
     /************
     * insn stage
@@ -164,6 +187,9 @@ module serial_sequencer
     logic [PC_WIDTH-1:0] w_imem_wr_addr;
     logic [INSN_WIDTH-1:0] w_imem_wr_data;
 
+    logic [PC_WIDTH-1:0] w_imem_rd_addr;
+    logic [INSN_WIDTH-1:0] w_imem_rd_data;
+
     bram #(
         .DATA_WIDTH(INSN_WIDTH),
         .ADDR_WIDTH(PC_WIDTH)
@@ -174,11 +200,16 @@ module serial_sequencer
         .i_din_a(w_imem_wr_data),
         .o_dout_a(),
 
+        // .i_clk_b(i_clk),
+        // .i_wr_b(1'b0),
+        // .i_addr_b(i.r_pc),
+        // .i_din_b(),
+        // .o_dout_b(o.w_insn)
         .i_clk_b(i_clk),
         .i_wr_b(1'b0),
-        .i_addr_b(i.r_pc),
+        .i_addr_b(w_imem_rd_addr),
         .i_din_b(),
-        .o_dout_b(o.w_insn)
+        .o_dout_b(w_imem_rd_data)
     );
 
     always_ff @(posedge i_clk) begin
@@ -202,6 +233,7 @@ module serial_sequencer
         end
     end
 
+    assign o.w_insn = w_imem_rd_data;
     assign o.w_insn2use = o.r_insn_buffered ? o.r_insn : o.w_insn;
 
     /******************
@@ -211,13 +243,17 @@ module serial_sequencer
     always_comb begin
         if (!p.r_active) begin
             w_imem_wr = w_ist_wr;
-            w_imem_wr_addr = w_ist_addr;
+            w_imem_wr_addr = w_ildst_addr;
             w_imem_wr_data = w_ist;
+
+            w_imem_rd_addr = w_ildst_addr;
         end
         else begin
             w_imem_wr = i_next && !o_empty;
             w_imem_wr_addr = o_pc;
             w_imem_wr_data = i_insn_modified;
+
+            w_imem_rd_addr = i.r_pc;
         end
     end
 
@@ -234,5 +270,12 @@ module serial_sequencer
     assign o_pc = o.r_pc;
     assign o_insn = o.w_insn2use;
     assign o_empty = !o.r_insn_valid;
+
+    always_ff @(posedge i_clk) begin
+        if (i_rst)
+            o_insn_rd <= 'h0;
+        else if (w_ild_rd)
+            o_insn_rd <= w_imem_rd_data;
+    end
 
 endmodule
