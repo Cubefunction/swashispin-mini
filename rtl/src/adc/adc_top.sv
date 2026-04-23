@@ -2,20 +2,6 @@
 
 //==============================================================================
 // adc_top
-//------------------------------------------------------------------------------
-// ADC control core + sine-wave model + ADC-to-DDR3 writer.
-// The DDR3 user-side write port produced here is designed to hook straight
-// into ddr3_top / mig_axi4_driver:
-//
-//   adc_top.o_user_wr_valid       -> ddr3_top.i_user_wr_valid
-//   adc_top.o_user_wr_addr_base   -> ddr3_top.i_user_wr_addr_base
-//   adc_top.o_user_wr_data        -> ddr3_top.i_user_wr_data
-//   adc_top.o_user_wr_data_valid  -> ddr3_top.i_user_wr_data_valid
-// ddr3_top.o_user_wr_fifo_ready / o_user_wr_finish are observed at the
-// system level (not consumed here - see Natural-rate assumption).
-//
-// i_clk should be the ui_clk produced by ddr3_top (same clock as the driver's
-// write FIFO write side).
 //==============================================================================
 module adc_top #(
     parameter int NUM_REGS        = 54,
@@ -52,7 +38,10 @@ module adc_top #(
     output logic                     o_user_wr_valid,
     output logic [DDR_ADDR_W-1:0]    o_user_wr_addr_base,
     output logic [DDR_DATA_W-1:0]    o_user_wr_data,
-    output logic                     o_user_wr_data_valid
+    output logic                     o_user_wr_data_valid,
+
+    // ---- Byte counter (for PC-visible readback) ----
+    output logic [DDR_ADDR_W-1:0]    o_bytes_written
 );
 
     //==========================================================================
@@ -127,7 +116,8 @@ module adc_top #(
         .o_user_wr_valid      (o_user_wr_valid),
         .o_user_wr_addr_base  (o_user_wr_addr_base),
         .o_user_wr_data       (o_user_wr_data),
-        .o_user_wr_data_valid (o_user_wr_data_valid)
+        .o_user_wr_data_valid (o_user_wr_data_valid),
+        .o_bytes_written      (o_bytes_written)
     );
 
 endmodule

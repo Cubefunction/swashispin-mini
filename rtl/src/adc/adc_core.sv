@@ -3,31 +3,6 @@
 //==============================================================================
 // adc_core  (2-stage pipeline : FD + EX)
 //------------------------------------------------------------------------------
-// Instruction processor.
-//
-// Stages
-//   FD (Fetch / Decode) : 1-deep pre-fetch buffer that holds the instruction
-//                         we WILL run next.  Decode is combinational off
-//                         fd_insn so the opcode/fields are ready the moment
-//                         EX needs them.
-//   EX (Execute)        : multi-cycle for SAM / NOP, single-cycle commit for
-//                         JMP / END.
-//
-// Why 2 stages instead of 3
-//   The previous 3-stage IF/ID/EX design flushed both ID and EX on every
-//   commit, so two consecutive SAM/NOP instructions always had a 2-cycle
-//   bubble in EX (ex_opcode would dip back to 0).  Here FD is the ONLY
-//   pre-fetch stage, and on a sequential commit (NOP / SAM / JMP-not-taken)
-//   the instruction already sitting in FD is copied straight into EX on the
-//   same edge that the previous instruction retires --> zero bubble, and in
-//   the waveform ex_opcode stays asserted through back-to-back SAMs, so
-//   o_adc_sampling never goes low between them.
-//
-//   Only JMP-taken and END still cause a redirect:
-//     * JMP-taken : 1 cycle bubble while FD re-fetches from the target.
-//     * END       : FD is flushed and run_latched drops -> core returns to
-//                   idle.
-//
 // Opcodes (unchanged)
 //   [31:28] opcode      : NOP=0000, SAM=0001, JMP=0010, END=1111
 //   [27:16] count_field : sample count for SAM (also loop count for JMP)
@@ -111,8 +86,11 @@ module adc_core #(
     logic [11:0]           jmp_left_mem [0:NUM_REGS-1];
     logic                  jmp_init_mem [0:NUM_REGS-1];
 
+    logic                  ex_jmp_init;
+    logic [11:0]           ex_jmp_left;
+
     wire [11:0]            ex_jmp_left_effective =
-        jmp_init_mem[ex_pc] ? jmp_left_mem[ex_pc] : ex_count_field;
+        ex_jmp_init ? ex_jmp_left : ex_count_field;
     wire                   ex_jmp_take =
         (ex_valid && (ex_opcode == OP_JMP) && (ex_jmp_left_effective != 12'd0));
 
@@ -129,10 +107,7 @@ module adc_core #(
                         (ex_opcode == OP_END));
 
     // FD -> EX transfer.  Fires on:
-    //   a) EX is idle (stall_pipe=0) and FD has an instruction, OR
-    //   b) EX is committing this cycle (sequential) and FD has an instruction.
-    // Redirects (JMP-taken / END) suppress the transfer because FD's contents
-    // are about to be invalidated.
+
     wire                   ex_load_new =
         fd_valid && (!stall_pipe || commit_fire) && !commit_redirect;
 
@@ -196,6 +171,8 @@ module adc_core #(
             ex_timer         <= '0;
             ex_samples_left  <= '0;
             ex_busy          <= 1'b0;
+            ex_jmp_init      <= 1'b0;
+            ex_jmp_left      <= '0;
 
             o_adc_sampling   <= 1'b0;
             o_active         <= 1'b0;
@@ -290,9 +267,6 @@ module adc_core #(
 
                 //--------------------------------------------------------------
                 // EX register-set : try to load FD -> EX first (this
-                // captures the sequential-commit back-to-back case).  If
-                // that doesn't happen but we still committed (redirect),
-                // clear EX.
                 //--------------------------------------------------------------
                 if (ex_load_new) begin
                     ex_pc           <= fd_pc;
@@ -301,6 +275,12 @@ module adc_core #(
                     ex_target       <= d_target;
                     ex_delay_cycles <= d_delay_cycles;
                     ex_valid        <= 1'b1;
+
+                    // Snapshot the JMP-loop state for this pc.  After this,
+                    // ex_jmp_left_effective uses the registered copy instead
+                    // of indexing into jmp_*_mem[].
+                    ex_jmp_init     <= jmp_init_mem[fd_pc];
+                    ex_jmp_left     <= jmp_left_mem[fd_pc];
 
                     unique case (d_opcode)
                         OP_NOP: begin
@@ -370,11 +350,7 @@ module adc_core #(
                 //--------------------------------------------------------------
                 // Outputs
                 //--------------------------------------------------------------
-                // o_adc_sampling: asserted while EX is actively running a
-                // SAM.  Updated on every EX-side event (load / commit); when
-                // neither fires we let it hold -- during a SAM's busy phase
-                // that keeps it high, and between instructions of different
-                // types the commit-path knocks it low.
+
                 if (ex_load_new) begin
                     o_adc_sampling <=
                         (d_opcode == OP_SAM) && (d_count_field != 12'd0);
