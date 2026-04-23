@@ -88,8 +88,36 @@ LCH_TRIG_REG   = 16  # i_regs[1]: use_trigger flag (0 = free-running)
 LCH_ITERS_REG  = 17  # i_regs[2]: launch iteration count (32-bit)
 LCH_CLR_REG    = 18  # i_regs[3]: clear strobe
 LCH_STRB_REG   = 19  # i_regs[4]: new_ctrl strobe (posedge → apply)
+MARKER_SEL_REG = 20  # marker_sel[0..2]: which DC channel index drives each marker output
+NUM_MARKERS    = 3
 
 DAC_REG_MAP = {'dr': 1, 'cr': 2, 'clr': 3, 'scr': 4}
+
+_REG_NAMES = {
+    IST_ADDR_REG:   'IST_ADDR',
+    IST_REG_LO:     'IST_LO',
+    IST_REG_LO + 1: 'IST_MID',
+    IST_REG_HI:     'IST_HI',
+    IST_STRB_REG:   'IST_STRB',
+    ILD_STRB_REG:   'ILD_STRB',
+    ITERS_REG:      'ITERS',
+    DEPTH_REG:      'DEPTH',
+    START_STRB_REG: 'START_STRB',
+    HALT_STRB_REG:  'HALT_STRB',
+    CTRL_DVSR_REG:  'CTRL_DVSR',
+    CTRL_DELAY_REG: 'CTRL_DELAY',
+    CTRL_CSUP_REG:  'CTRL_CSUP',
+    CTRL_LDAC_REG:  'CTRL_LDAC',
+    CTRL_STRB_REG:  'CTRL_STRB',
+    LCH_MASK_REG:   'LCH_MASK',
+    LCH_TRIG_REG:   'LCH_TRIG',
+    LCH_ITERS_REG:  'LCH_ITERS',
+    LCH_CLR_REG:        'LCH_CLR',
+    LCH_STRB_REG:       'LCH_STRB',
+    MARKER_SEL_REG:     'MK_SEL0',
+    MARKER_SEL_REG + 1: 'MK_SEL1',
+    MARKER_SEL_REG + 2: 'MK_SEL2',
+}
 
 
 # ── Voltage / time helpers ───────────────────────────────────────────────────
@@ -205,45 +233,83 @@ def decode_insn(v: int) -> 'DcInsn':
 
 _REG_CODE_TO_NAME = {v: k for k, v in DAC_REG_MAP.items()}
 
+
+def _format_time(ns: int) -> str:
+    """Convert nanoseconds to the most readable time unit string."""
+    if ns >= 1_000_000_000 and ns % 1_000_000_000 == 0:
+        return f"{ns // 1_000_000_000}s"
+    if ns >= 1_000_000 and ns % 1_000_000 == 0:
+        return f"{ns // 1_000_000}ms"
+    if ns >= 1_000 and ns % 1_000 == 0:
+        return f"{ns // 1_000}us"
+    return f"{ns}ns"
+
+
+def _delta_signed(delta: int) -> int:
+    """Interpret 16-bit delta field as a signed integer."""
+    return delta if delta < 0x8000 else delta - 0x10000
+
+
+def _opts_str(insn: DcInsn, include_ldc: bool = False, include_vplus: bool = False) -> str:
+    """Build the options string (without outer parens)."""
+    flags = []
+    if include_vplus and insn.modify:
+        # delta holds volt_to_signed(vplus, 20) truncated to 16 bits; recover via sign-extension
+        vplus = code_to_volt(_delta_signed(insn.delta), bits=20)
+        flags.append(f"v+{vplus:.4f}")
+    if include_ldc and insn.strb_ldac:
+        flags.append("ldc")
+    if insn.arm:
+        flags.append("arm")
+    if insn.sticky_arm:
+        flags.append("srm")
+    if insn.marker:
+        flags.append("mk")
+    return " ".join(flags)
+
+
 def format_insn(insn: DcInsn) -> str:
-    parts = []
+    """Reconstruct assembly source line from a decoded instruction."""
 
     if insn.idle:
-        parts.append("nop")
-    else:
-        is_rd    = bool((insn.spi_din >> 23) & 1)
-        dac_reg  = (insn.spi_din >> 20) & 0x7
-        dac_code = insn.spi_din & 0xFFFFF
-        reg_name = _REG_CODE_TO_NAME.get(dac_reg, f"r{dac_reg}")
-        if is_rd:
-            parts.append(f"get {reg_name}")
-        elif dac_reg == DAC_REG_MAP['dr']:
-            parts.append(f"v={code_to_volt(dac_code):+.4f}V")
+        opts = _opts_str(insn, include_ldc=True, include_vplus=True)
+        return f"nop ({opts})" if opts else "nop"
+
+    is_rd    = bool((insn.spi_din >> 23) & 1)
+    dac_reg  = (insn.spi_din >> 20) & 0x7
+    dac_code = insn.spi_din & 0xFFFFF
+    reg_name = _REG_CODE_TO_NAME.get(dac_reg, f"r{dac_reg}")
+
+    if is_rd:
+        opts = _opts_str(insn, include_ldc=True)
+        return f"get {reg_name} ({opts})" if opts else f"get {reg_name}"
+
+    if dac_reg == DAC_REG_MAP['dr'] and insn.strb_ldac:
+        t_str = _format_time(insn.hold_cycles * NS_PER_CYCLE)
+        opts = _opts_str(insn, include_vplus=True)
+        opts_part = f" ({opts})" if opts else ""
+
+        if insn.iters == 0:
+            v = code_to_volt(dac_code)
+            return f"lvl v={v:+.4f} t={t_str}{opts_part}"
         else:
-            parts.append(f"set {reg_name} 0x{dac_code:05X}")
+            # reconstruct v2 from v1 + delta * steps
+            steps = insn.iters
+            v1_s = dac_code if dac_code < (1 << 19) else dac_code - (1 << 20)
+            dv   = _delta_signed(insn.delta)
+            v2_code = (v1_s + dv * steps) & 0xFFFFF
+            v1 = code_to_volt(dac_code)
+            v2 = code_to_volt(v2_code)
+            return f"swp v1={v1:+.4f} v2={v2:+.4f} n={steps + 1} dt={t_str}{opts_part}"
 
-    if insn.iters:
-        parts.append(f"its={insn.iters}")
+    if dac_reg != DAC_REG_MAP['dr'] and not is_rd:
+        opts = _opts_str(insn, include_ldc=True, include_vplus=True)
+        return f"set {reg_name} 0x{dac_code:05X} ({opts})" if opts else f"set {reg_name} 0x{dac_code:05X}"
 
-    parts.append(f"t={insn.hold_cycles * NS_PER_CYCLE}ns")
-
-    if insn.delta:
-        delta_s = insn.delta if insn.delta < (1 << (DELTA_BITS - 1)) else insn.delta - (1 << DELTA_BITS)
-        dv_v = delta_s * (VMAX - VMIN) / (1 << DAC_BITS)
-        parts.append(f"dv={dv_v:+.6f}V/step")
-
-    if insn.strb_ldac:
-        parts.append("ldc")
-
-    flags = []
-    if insn.arm:        flags.append("arm")
-    if insn.sticky_arm: flags.append("srm")
-    if insn.marker:     flags.append("mk")
-    if insn.modify:     flags.append("mod")
-    if flags:
-        parts.append(f"({' '.join(flags)})")
-
-    return "  ".join(parts)
+    # raw fallback for anything that doesn't fit a clean mnemonic
+    opts = _opts_str(insn, include_ldc=True, include_vplus=True)
+    opts_part = f" ({opts})" if opts else ""
+    return f"ful its={insn.iters} din={insn.spi_din:06X} cyc={insn.hold_cycles}{opts_part}"
 
 
 # ── Option parsing ───────────────────────────────────────────────────────────
@@ -468,8 +534,10 @@ class DcProgram:
 
 @dataclass
 class Launch:
-    dc_chmask: int = 0
-    iters:     int = 1
+    dc_chmask:   int = 0
+    iters:       int = 1
+    use_trigger: int = 0
+    marker_sels: Optional[list[int]] = None  # length-3 list of DC channel indices, one per marker output
 
 
 # ── Assembly file parser ─────────────────────────────────────────────────────
@@ -574,6 +642,11 @@ def parse_asm(text: str) -> tuple[list[DcProgram], Optional[Launch]]:
             if x_m:
                 launch.iters = int(x_m[1])
                 rest = x_m[2].strip()
+            # optional (trig) flag at end
+            trig_m = re.search(r'\(trig\)\s*$', rest)
+            if trig_m:
+                launch.use_trigger = 1
+                rest = rest[:trig_m.start()].strip()
             if rest:
                 # inline: .launch dc0 dc1 ... or .launch dc0-23
                 mask = 0
@@ -599,6 +672,26 @@ def parse_asm(text: str) -> tuple[list[DcProgram], Optional[Launch]]:
                     launch.dc_chmask = int(ln, 16)
                     i += 1
                     break
+            continue
+
+        m = re.match(r'\s*\.marker\s+(.*)', ln)
+        if m:
+            toks = m.group(1).split()
+            if len(toks) != NUM_MARKERS:
+                raise ValueError(f".marker: expected {NUM_MARKERS} dc channels, got {len(toks)}: {toks}")
+            sels = []
+            for tok in toks:
+                ch_m = re.match(r'dc(\d+)$', tok)
+                if not ch_m:
+                    raise ValueError(f".marker: expected dc<N>, got {tok!r}")
+                ch = int(ch_m[1])
+                if ch >= DC_CHANNELS:
+                    raise ValueError(f".marker: dc{ch} out of range (max dc{DC_CHANNELS-1})")
+                sels.append(ch)
+            if launch is None:
+                launch = Launch()
+            launch.marker_sels = sels
+            i += 1
             continue
 
         raise ValueError(f"Unexpected line {i+1}: {lines[i]!r}")
@@ -660,11 +753,18 @@ def start_ops(prog: DcProgram) -> Ops:
 def launch_ops(launch: Launch) -> Ops:
     ops: Ops = [
         (LCH_MASK_REG,  launch.dc_chmask),
-        (LCH_TRIG_REG,  0),
+        (LCH_TRIG_REG,  launch.use_trigger & 1),
         (LCH_ITERS_REG, launch.iters),
     ]
     ops.extend(strobe(LCH_STRB_REG, 1))
+    if launch.marker_sels is not None:
+        for idx, ch in enumerate(launch.marker_sels):
+            ops.append((MARKER_SEL_REG + idx, ch & 0x1F))
     return ops
+
+
+def clear_launch_ops() -> Ops:
+    return strobe(LCH_CLR_REG, 1)
 
 
 # ── Output writers ───────────────────────────────────────────────────────────
@@ -708,26 +808,38 @@ def write_bin_file(programs: list[DcProgram], launch: Optional[Launch], path: st
 
 
 def send_via_serial(programs: list[DcProgram], launch: Optional[Launch],
-                    port: str, baud: int = 921600) -> None:
+                    port: str, baud: int = 921600, clear: bool = False) -> None:
     try:
         import serial
     except ImportError:
         sys.exit("pyserial not installed — run: pip install pyserial")
+
+    def _write(ser, reg: int, data: int) -> None:
+        bs = reg_bytes(reg, data)
+        name = _REG_NAMES.get(reg, f'reg{reg}')
+        print(f"  WRITE {name}[{reg}] = 0x{data:08X}  bytes: [{', '.join(f'0x{b:02X}' for b in bs)}]")
+        ser.write(bs)
+
     with serial.Serial(port, baud, timeout=1) as ser:
+        if clear:
+            print("Clearing launch controller...")
+            for reg, data in clear_launch_ops():
+                _write(ser, reg, data)
         for prog in programs:
             print(f"Loading dc{prog.channel} ({len(prog.insns)} insns)...")
             for reg, data in load_ops(prog):
-                ser.write(reg_bytes(reg, data))
+                _write(ser, reg, data)
             for reg, data in start_ops(prog):
-                ser.write(reg_bytes(reg, data))
+                _write(ser, reg, data)
         if launch:
             print(f"Launch mask: 0x{launch.dc_chmask:06X}")
             for reg, data in launch_ops(launch):
-                ser.write(reg_bytes(reg, data))
+                _write(ser, reg, data)
 
 
 def send_via_sim(programs: list[DcProgram], launch: Optional[Launch],
-                 sock_path: str = '/tmp/tb_cmd.sock', extra_ns: int = 1000) -> None:
+                 sock_path: str = '/tmp/tb_cmd.sock', extra_ns: int = 1000,
+                 clear: bool = False) -> None:
     """
     Send register writes to the RTL simulator via Unix domain socket.
 
@@ -751,10 +863,18 @@ def send_via_sim(programs: list[DcProgram], launch: Optional[Launch],
         fp.write(f"0x{b:02X}\n")
 
     def send_reg(reg: int, data: int) -> None:
-        for b in reg_bytes(reg, data):
+        bs = reg_bytes(reg, data)
+        name = _REG_NAMES.get(reg, f'reg{reg}')
+        print(f"  WRITE {name}[{reg}] = 0x{data:08X}  bytes: [{', '.join(f'0x{b:02X}' for b in bs)}]")
+        for b in bs:
             send_byte(b)
 
     print(f"Connected to simulator at {sock_path!r}")
+
+    if clear:
+        print("Clearing launch controller...")
+        for reg, data in clear_launch_ops():
+            send_reg(reg, data)
 
     for prog in programs:
         print(f"Loading dc{prog.channel} ({len(prog.insns)} insns)...")
@@ -855,6 +975,64 @@ def read_via_sim(channel: int, sock_path: str = '/tmp/tb_cmd.sock') -> None:
         print(f"  [{idx:3d}]  {format_insn(insn)}")
 
 
+def read_launch_via_sim(sock_path: str = '/tmp/tb_cmd.sock') -> None:
+    """Read all launch controller registers from the simulator."""
+    import socket as _socket
+
+    sock = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
+    try:
+        sock.connect(sock_path)
+    except FileNotFoundError:
+        sys.exit(f"Simulator socket not found: {sock_path!r} — is the simulator running?")
+    except ConnectionRefusedError:
+        sys.exit(f"Simulator not accepting connections on {sock_path!r}")
+
+    fp = sock.makefile('w', buffering=1)
+    rp = sock.makefile('r', buffering=1)
+
+    def send_byte(b: int) -> None:
+        fp.write(f"0x{b:02X}\n")
+
+    def uart_read(rregs_addr: int) -> int:
+        send_byte(0x80 | rregs_addr)
+        fp.write(f"run {5 * SIM_FRAME_NS}\n")
+        fp.flush()
+        return int(rp.readline().strip(), 16)
+
+    def read_wreg(waddr: int) -> int:
+        return uart_read(waddr)
+
+    def read_ro(ro_offset: int) -> int:
+        return uart_read(WRITE_REGS + ro_offset)
+
+    # Configured (write) registers
+    lch_mask     = read_wreg(LCH_MASK_REG)
+    lch_trig     = read_wreg(LCH_TRIG_REG)
+    lch_iters_cfg = read_wreg(LCH_ITERS_REG)
+
+    # Runtime (read-only) registers
+    lch_iters_left = read_ro(RO_LCH_ITERS)
+    armed_bus      = read_ro(RO_ARMED_REG)
+    empty_bus      = read_ro(RO_EMPTY_REG)
+
+    fp.close()
+    rp.close()
+    sock.close()
+
+    armed_chs = [i for i in range(DC_CHANNELS) if (armed_bus >> i) & 1]
+    empty_chs = [i for i in range(DC_CHANNELS) if (empty_bus >> i) & 1]
+    not_armed = [i for i in range(DC_CHANNELS) if (lch_mask >> i) & 1 and not (armed_bus >> i) & 1]
+
+    print(f"launch")
+    print(f"  cfg  mask=0x{lch_mask:06X}  use_trigger={lch_trig & 1}  iters={lch_iters_cfg}")
+    print(f"  live iters_left={lch_iters_left}")
+    print(f"  armed_bus=0x{armed_bus:06X}  empty_bus=0x{empty_bus:06X}")
+    print(f"  armed chs : {armed_chs if armed_chs else 'none'}")
+    print(f"  empty chs : {empty_chs if empty_chs else 'none'}")
+    if not_armed:
+        print(f"  in-mask not armed: {not_armed}")
+
+
 # ── Program timing estimate ──────────────────────────────────────────────────
 
 def estimate_ns(programs: list[DcProgram]) -> int:
@@ -886,32 +1064,39 @@ def main() -> None:
     ap.add_argument('-s', metavar='SOCK', nargs='?', const='/tmp/tb_cmd.sock',
                     help='Simulate via RTL socket (default /tmp/tb_cmd.sock)')
     ap.add_argument('-r', metavar='CHANNEL',
-                    help='Read channel state from simulator, e.g. dc0')
+                    help="Read state from simulator: dc<N> for a DC channel, 'launch' for the launch controller")
+    ap.add_argument('-c', action='store_true',
+                    help='Send clear strobe to launch controller (before loading, if -f given)')
     args = ap.parse_args()
 
     if args.r:
-        m = re.match(r'dc(\d+)$', args.r)
-        if not m:
-            sys.exit(f"-r: expected dc<N>, got {args.r!r}")
         sock_path = args.s if args.s else '/tmp/tb_cmd.sock'
-        read_via_sim(int(m[1]), sock_path=sock_path)
+        if args.r == 'launch':
+            read_launch_via_sim(sock_path=sock_path)
+        else:
+            m = re.match(r'dc(\d+)$', args.r)
+            if not m:
+                sys.exit(f"-r: expected dc<N> or 'launch', got {args.r!r}")
+            read_via_sim(int(m[1]), sock_path=sock_path)
         return
 
-    if not args.f:
+    if not args.f and not args.c:
         ap.print_help()
         sys.exit(1)
 
-    with open(args.f) as fh:
-        text = fh.read()
+    programs: list[DcProgram] = []
+    launch: Optional[Launch] = None
 
-    try:
-        programs, launch = parse_asm(text)
-    except ValueError as e:
-        sys.exit(f"Parse error: {e}")
-
-    for prog in programs:
-        print(f"dc{prog.channel}: {len(prog.insns)} insn(s), repeat={prog.repeat}")
-    print(f"estimated program time: {estimate_ns(programs)} ns")
+    if args.f:
+        with open(args.f) as fh:
+            text = fh.read()
+        try:
+            programs, launch = parse_asm(text)
+        except ValueError as e:
+            sys.exit(f"Parse error: {e}")
+        for prog in programs:
+            print(f"dc{prog.channel}: {len(prog.insns)} insn(s), repeat={prog.repeat}")
+        print(f"estimated program time: {estimate_ns(programs)} ns")
 
     if args.o:
         write_bin_file(programs, launch, args.o)
@@ -926,10 +1111,10 @@ def main() -> None:
         print(f"mem files → {args.m}/")
 
     if args.x:
-        send_via_serial(programs, launch, args.x, args.baud)
+        send_via_serial(programs, launch, args.x, args.baud, clear=args.c)
 
     if args.s:
-        send_via_sim(programs, launch, sock_path=args.s)
+        send_via_sim(programs, launch, sock_path=args.s, clear=args.c)
 
 
 if __name__ == '__main__':

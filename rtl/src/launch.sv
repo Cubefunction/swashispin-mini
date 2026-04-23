@@ -72,13 +72,13 @@ module launch
     logic w_dc_ready;
     assign w_dc_ready = ((r_dc_active_mask ^ r_dc_armed) == 'h0);
 
-    enum {IDLE, LAUNCH} r_state, w_next_state;
+    enum {IDLE, ARM, LAUNCH, DELAY1, DELAY2} r_state, w_next_state;
 
     always_ff @(posedge i_clk) begin
         r_state <= (i_rst || w_clear) ? IDLE : w_next_state;
     end
 
-    assign w_all_ready = (r_state == LAUNCH) && w_dc_ready && 
+    assign w_all_ready = (r_state == ARM) && w_dc_ready && 
         ((r_use_trigger && i_trigger) || !r_use_trigger);
 
     logic w_start;
@@ -100,11 +100,23 @@ module launch
 
         case (r_state)
             IDLE: begin
-                w_next_state = (r_iters > 'd0) ? LAUNCH : IDLE;
+                w_next_state = (r_iters > 'd0) ? ARM : IDLE;
+            end
+            ARM: begin
+                w_next_state = w_all_ready ? LAUNCH : ARM;
+                w_start = w_all_ready;
+            end
+            LAUNCH: begin
+                w_next_state = DELAY1;
+            end
+            DELAY1: begin
+                w_next_state = DELAY2;
+            end
+            DELAY2: begin
+                w_next_state = IDLE;
             end
             default: begin
-                w_next_state = w_all_ready ? IDLE : LAUNCH;
-                w_start = w_all_ready;
+                w_next_state = IDLE;
             end
         endcase
 
