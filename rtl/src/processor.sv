@@ -129,7 +129,7 @@ module processor
         );
 
         assign o_regs[DC_ITERS_REG_LO + i] = {{(32-DC_SEQ_ITER_WIDTH){1'b0}}, w_dc_iters_bus[i]};
-        assign o_regs[DC_DEPTH_REG_LO + i] = {{(32-$clog2(DC_DEPTH)){1'b0}}, w_dc_iters_bus[i]};
+        assign o_regs[DC_DEPTH_REG_LO + i] = {{(32-$clog2(DC_DEPTH)){1'b0}}, w_dc_depth_bus[i]};
 
     end
 

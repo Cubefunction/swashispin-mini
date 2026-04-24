@@ -12,7 +12,7 @@ module top
      output logic o_a3, o_a5, o_a4, o_a6,
                   o_a9, o_a11, o_a10, o_a12,
                   o_a15, o_a17, o_a16, o_a18,
-                  o_a21, o_a23, o_a22, o_a24,
+                  o_a21, o_a23, o_a22, /* o_a24, */
                   o_a27, o_a29, o_a28, o_a30,
                   o_a33, o_a35, o_a34, o_a36,
                   o_a39, o_a41, o_a40, o_a42,
@@ -22,6 +22,8 @@ module top
                   o_a63, o_a65, o_a64, o_a66,
                   o_a69, o_a71, o_a70, o_a72,
                   o_a75, o_a77, o_a76, o_a78,
+
+     input  logic i_a24,
 
      output logic o_b3, o_b5, o_b4, o_b6,
                   o_b9, o_b11, o_b10, o_b12,
@@ -38,10 +40,13 @@ module top
                   o_b75, o_b77, o_b76, o_b78);
 
     localparam NUM_DC_CHANNEL=24;
+    localparam NUM_MARKER_CHANNEL=3;
 
-    localparam TOTAL_REGS=DC_SEQ_REGS+DC_CTRL_REGS+LCH_TOTAL_REGS;
+    localparam WRITE_REGS=DC_SEQ_REGS+DC_CTRL_REGS+LCH_CTRL_REGS+NUM_MARKER_CHANNEL;
+    localparam READ_REGS=DC_REG_PER_INSN+2+NUM_DC_CHANNEL*2+1;
 
-    logic [0:TOTAL_REGS-1][31:0] w_regs;
+    logic [0:WRITE_REGS-1][31:0] w_exe_regs;
+    logic [0:READ_REGS-1][31:0] w_ro_regs;
 
     uart_regs #(
         .DATA_WIDTH(8),
@@ -51,15 +56,16 @@ module top
         .TX_FIFO_DEPTH(8),
         .TX_FIFO_AF_DEPTH(6),
         .TX_FIFO_AE_DEPTH(2),
-        .NUM_REGS(TOTAL_REGS)
+        .NUM_WRITE_REGS(WRITE_REGS),
+        .NUM_READ_REGS(READ_REGS)
     ) REGS (
         .i_clk(i_clk),
         .i_rst(!i_rst_n),
         .i_rx(i_rx),
         .o_tx(o_tx),
         .i_dvsr(11'd6),
-        .o_regs(w_regs),
-        .i_regs()
+        .o_regs(w_exe_regs),
+        .i_regs(w_ro_regs)
     );
 
     logic [0:NUM_DC_CHANNEL-1] w_dc_sclk_bus;
@@ -67,13 +73,17 @@ module top
     logic [0:NUM_DC_CHANNEL-1] w_dc_cs_n_bus;
     logic [0:NUM_DC_CHANNEL-1] w_dc_ldac_n_bus;
 
+    logic w_async_trigger;
+    logic [0:NUM_MARKER_CHANNEL-1] w_marker_bus;
+
     processor #(
         .NUM_DC_CHANNEL(NUM_DC_CHANNEL)
     ) PROCESSOR (
         .i_clk(i_clk),
         .i_rst(!i_rst_n),
 
-        .i_regs(w_regs),
+        .i_regs(w_exe_regs),
+        .o_regs(w_ro_regs),
 
         .o_dc_sclk_bus(w_dc_sclk_bus),
         .o_dc_mosi_bus(w_dc_mosi_bus),
@@ -83,7 +93,10 @@ module top
 
         .o_dc_armed_bus(),
         .o_dc_empty_bus(),
-        .o_dc_eop_bus()
+        .o_dc_eop_bus(),
+
+        .i_async_trigger(w_async_trigger),
+        .o_marker_bus(w_marker_bus)
     );
 
     io #(
@@ -96,7 +109,13 @@ module top
         .i_dc_clr_n(1'b1),
         .i_dc_rst_n(1'b1),
 
-        .i_aux_bus({w_dc_ldac_n_bus[13], w_dc_cs_n_bus[1], 4'h0}),
+        // .i_aux_bus({w_dc_ldac_n_bus[13], w_dc_cs_n_bus[1], 4'h0}),
+        .i_aux1(w_dc_ldac_n_bus[13]),
+        .i_aux2(w_dc_cs_n_bus[1]),
+        .o_aux3(w_async_trigger),
+        .i_aux4(w_marker_bus[0]),
+        .i_aux5(w_marker_bus[1]),
+        .i_aux6(w_marker_bus[2]),
 
         .*
     );

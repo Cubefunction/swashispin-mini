@@ -10,13 +10,19 @@ module io
      input  logic [0:NUM_DC_CHANNEL-1] i_dc_ldac_n_bus,
      input  logic i_dc_clr_n, i_dc_rst_n,
 
-     input  logic [0:5] i_aux_bus,
+     // input  logic [0:5] i_aux_bus,
+     input  logic i_aux1,
+     input  logic i_aux2,
+     output logic o_aux3,
+     input  logic i_aux4,
+     input  logic i_aux5,
+     input  logic i_aux6,
 
      // bank A
      output logic o_a3, o_a5, o_a4, o_a6,
                   o_a9, o_a11, o_a10, o_a12,
                   o_a15, o_a17, o_a16, o_a18,
-                  o_a21, o_a23, o_a22, o_a24,
+                  o_a21, o_a23, o_a22, /* o_a24, */
                   o_a27, o_a29, o_a28, o_a30,
                   o_a33, o_a35, o_a34, o_a36,
                   o_a39, o_a41, o_a40, o_a42,
@@ -26,6 +32,8 @@ module io
                   o_a63, o_a65, o_a64, o_a66,
                   o_a69, o_a71, o_a70, o_a72,
                   o_a75, o_a77, o_a76, o_a78,
+
+     input  logic i_a24,
 
      // bank B
      output logic o_b3, o_b5, o_b4, o_b6,
@@ -46,25 +54,31 @@ module io
     assign o_a3 = i_dc_sclk_bus[10];
     assign o_a5 = i_dc_ldac_n_bus[22];
     assign o_a4 = i_dc_mosi_bus[23];
-    assign o_a6 = i_aux_bus[5];
+    // assign o_a6 = i_aux_bus[5];
+    assign o_a6 = i_aux6;
 
     assign o_a9 = i_dc_mosi_bus[10];
     assign o_a11 = i_dc_mosi_bus[22];
     assign o_a10 = i_dc_cs_n_bus[11];
-    assign o_a12 = i_aux_bus[4];
+    // assign o_a12 = i_aux_bus[4];
+    assign o_a12 = i_aux5;
 
     assign o_a15 = i_dc_ldac_n_bus[10];
     assign o_a17 = i_dc_sclk_bus[22];
     assign o_a16 = i_dc_sclk_bus[23];
-    assign o_a18 = i_aux_bus[3];
+    // assign o_a18 = i_aux_bus[3];
+    assign o_a18 = i_aux4;
 
-    assign o_a21 = i_aux_bus[1];
+    // assign o_a21 = i_aux_bus[1];
+    assign o_a21 = i_aux2;
     assign o_a23 = i_dc_cs_n_bus[22];
     assign o_a22 = i_dc_sclk_bus[11];
-    assign o_a24 = i_aux_bus[2];
+    // assign o_a24 = i_aux_bus[2];
+    assign i_a24 = o_aux3;
 
     assign o_a27 = i_dc_cs_n_bus[9];
-    assign o_a29 = i_aux_bus[0];
+    // assign o_a29 = i_aux_bus[0];
+    assign o_a29 = i_aux1;
     assign o_a28 = i_dc_cs_n_bus[23];
     assign o_a30 = i_dc_cs_n_bus[10];
 

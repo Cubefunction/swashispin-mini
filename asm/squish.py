@@ -24,7 +24,7 @@ Assembly syntax (unchanged from C assembler):
 
 Options in (): arm  rd  ldc  v+<voltage>  mk  srm
 Time units: ns us ms s
-    -r dc<N>   read back BRAM instructions and runtime status for channel N (sim only)
+    -r dc<N>   read back BRAM instructions and runtime status for channel N
 """
 
 import argparse
@@ -808,7 +808,8 @@ def write_bin_file(programs: list[DcProgram], launch: Optional[Launch], path: st
 
 
 def send_via_serial(programs: list[DcProgram], launch: Optional[Launch],
-                    port: str, baud: int = 921600, clear: bool = False) -> None:
+                    port: str, baud: int = 921600, clear: bool = False,
+                    verbose: bool = False) -> None:
     try:
         import serial
     except ImportError:
@@ -816,8 +817,9 @@ def send_via_serial(programs: list[DcProgram], launch: Optional[Launch],
 
     def _write(ser, reg: int, data: int) -> None:
         bs = reg_bytes(reg, data)
-        name = _REG_NAMES.get(reg, f'reg{reg}')
-        print(f"  WRITE {name}[{reg}] = 0x{data:08X}  bytes: [{', '.join(f'0x{b:02X}' for b in bs)}]")
+        if verbose:
+            name = _REG_NAMES.get(reg, f'reg{reg}')
+            print(f"  WRITE {name}[{reg}] = 0x{data:08X}  bytes: [{', '.join(f'0x{b:02X}' for b in bs)}]")
         ser.write(bs)
 
     with serial.Serial(port, baud, timeout=1) as ser:
@@ -839,7 +841,7 @@ def send_via_serial(programs: list[DcProgram], launch: Optional[Launch],
 
 def send_via_sim(programs: list[DcProgram], launch: Optional[Launch],
                  sock_path: str = '/tmp/tb_cmd.sock', extra_ns: int = 1000,
-                 clear: bool = False) -> None:
+                 clear: bool = False, verbose: bool = False) -> None:
     """
     Send register writes to the RTL simulator via Unix domain socket.
 
@@ -864,8 +866,9 @@ def send_via_sim(programs: list[DcProgram], launch: Optional[Launch],
 
     def send_reg(reg: int, data: int) -> None:
         bs = reg_bytes(reg, data)
-        name = _REG_NAMES.get(reg, f'reg{reg}')
-        print(f"  WRITE {name}[{reg}] = 0x{data:08X}  bytes: [{', '.join(f'0x{b:02X}' for b in bs)}]")
+        if verbose:
+            name = _REG_NAMES.get(reg, f'reg{reg}')
+            print(f"  WRITE {name}[{reg}] = 0x{data:08X}  bytes: [{', '.join(f'0x{b:02X}' for b in bs)}]")
         for b in bs:
             send_byte(b)
 
@@ -896,7 +899,109 @@ def send_via_sim(programs: list[DcProgram], launch: Optional[Launch],
     sock.close()
 
 
-def read_via_sim(channel: int, sock_path: str = '/tmp/tb_cmd.sock') -> None:
+def read_via_serial(channel: int, port: str, baud: int = 921600,
+                    verbose: bool = False) -> None:
+    """Read BRAM contents and runtime status for one DC channel via real UART."""
+    try:
+        import serial
+    except ImportError:
+        sys.exit("pyserial not installed — run: pip install pyserial")
+
+    with serial.Serial(port, baud, timeout=2) as ser:
+        def send_reg(reg: int, data: int) -> None:
+            bs = reg_bytes(reg, data)
+            if verbose:
+                name = _REG_NAMES.get(reg, f'reg{reg}')
+                print(f"  WRITE {name}[{reg}] = 0x{data:08X}  bytes: [{', '.join(f'0x{b:02X}' for b in bs)}]")
+            ser.write(bs)
+
+        def uart_read(reg_addr: int) -> int:
+            if verbose:
+                name = _REG_NAMES.get(reg_addr, f'reg{reg_addr}')
+                print(f"  READ  {name}[{reg_addr}]")
+            ser.write(bytes([0x80 | reg_addr]))
+            data = ser.read(4)
+            if len(data) != 4:
+                sys.exit(f"Read timeout: got {len(data)}/4 bytes for reg 0x{reg_addr:02X}")
+            val = int.from_bytes(data, 'big')
+            if verbose:
+                print(f"         → 0x{val:08X}")
+            return val
+
+        def read_ro(ro_offset: int) -> int:
+            return uart_read(WRITE_REGS + ro_offset)
+
+        num_insns = (read_ro(RO_DEPTH_BASE + channel) & 0x1FF) + 1
+
+        print(f"dc{channel}  insns={num_insns}")
+        send_reg(ILD_STRB_REG, 0)
+        for addr in range(num_insns):
+            send_reg(IST_ADDR_REG, addr)
+            send_reg(ILD_STRB_REG, 1 << channel)
+            w0 = read_ro(RO_ILD_BASE + 0)
+            w1 = read_ro(RO_ILD_BASE + 1)
+            w2 = read_ro(RO_ILD_BASE + 2)
+            v72 = ((w0 & 0xFF) << 64) | ((w1 & 0xFFFFFFFF) << 32) | (w2 & 0xFFFFFFFF)
+            print(f"  [{addr:3d}]  {format_insn(decode_insn(v72))}")
+            send_reg(ILD_STRB_REG, 0)
+
+        iters_left = read_ro(RO_ITERS_BASE + channel)
+        empty      = bool((read_ro(RO_EMPTY_REG) >> channel) & 1)
+        armed      = bool((read_ro(RO_ARMED_REG) >> channel) & 1)
+        print(f"  iters_left={iters_left}  armed={int(armed)}  empty={int(empty)}")
+
+
+def read_launch_via_serial(port: str, baud: int = 921600,
+                           verbose: bool = False) -> None:
+    """Read all launch controller registers via real UART."""
+    try:
+        import serial
+    except ImportError:
+        sys.exit("pyserial not installed — run: pip install pyserial")
+
+    with serial.Serial(port, baud, timeout=2) as ser:
+        def uart_read(reg_addr: int) -> int:
+            if verbose:
+                name = _REG_NAMES.get(reg_addr, f'reg{reg_addr}')
+                print(f"  READ  {name}[{reg_addr}]")
+            ser.write(bytes([0x80 | reg_addr]))
+            data = ser.read(4)
+            if len(data) != 4:
+                sys.exit(f"Read timeout: got {len(data)}/4 bytes for reg 0x{reg_addr:02X}")
+            val = int.from_bytes(data, 'big')
+            if verbose:
+                print(f"         → 0x{val:08X}")
+            return val
+
+        def read_wreg(waddr: int) -> int:
+            return uart_read(waddr)
+
+        def read_ro(ro_offset: int) -> int:
+            return uart_read(WRITE_REGS + ro_offset)
+
+        lch_mask       = read_wreg(LCH_MASK_REG)
+        lch_trig       = read_wreg(LCH_TRIG_REG)
+        lch_iters_cfg  = read_wreg(LCH_ITERS_REG)
+        lch_iters_left = read_ro(RO_LCH_ITERS)
+        armed_bus      = read_ro(RO_ARMED_REG)
+        empty_bus      = read_ro(RO_EMPTY_REG)
+
+    armed_chs = [i for i in range(DC_CHANNELS) if (armed_bus >> i) & 1]
+    empty_chs = [i for i in range(DC_CHANNELS) if (empty_bus >> i) & 1]
+    not_armed = [i for i in range(DC_CHANNELS) if (lch_mask >> i) & 1 and not (armed_bus >> i) & 1]
+
+    print(f"launch")
+    print(f"  cfg  mask=0x{lch_mask:06X}  use_trigger={lch_trig & 1}  iters={lch_iters_cfg}")
+    print(f"  live iters_left={lch_iters_left}")
+    print(f"  armed_bus=0x{armed_bus:06X}  empty_bus=0x{empty_bus:06X}")
+    print(f"  armed chs : {armed_chs if armed_chs else 'none'}")
+    print(f"  empty chs : {empty_chs if empty_chs else 'none'}")
+    if not_armed:
+        print(f"  in-mask not armed: {not_armed}")
+
+
+def read_via_sim(channel: int, sock_path: str = '/tmp/tb_cmd.sock',
+                 verbose: bool = False) -> None:
     """
     Read BRAM contents and runtime status for one DC channel from the simulator.
 
@@ -922,33 +1027,32 @@ def read_via_sim(channel: int, sock_path: str = '/tmp/tb_cmd.sock') -> None:
         fp.write(f"0x{b:02X}\n")
 
     def send_reg(reg: int, data: int) -> None:
-        for b in reg_bytes(reg, data):
+        bs = reg_bytes(reg, data)
+        if verbose:
+            name = _REG_NAMES.get(reg, f'reg{reg}')
+            print(f"  WRITE {name}[{reg}] = 0x{data:08X}  bytes: [{', '.join(f'0x{b:02X}' for b in bs)}]")
+        for b in bs:
             send_byte(b)
 
     def uart_read(rregs_addr: int) -> int:
         """Read r_regs[rregs_addr] (write or read-only reg) via UART read op."""
+        if verbose:
+            name = _REG_NAMES.get(rregs_addr, f'reg{rregs_addr}')
+            print(f"  READ  {name}[{rregs_addr}]")
         send_byte(0x80 | rregs_addr)
         fp.write(f"run {5 * SIM_FRAME_NS}\n")  # 1 byte out + 4 bytes back
         fp.flush()
-        return int(rp.readline().strip(), 16)
-
-    def read_wreg(waddr: int) -> int:
-        return uart_read(waddr)
+        val = int(rp.readline().strip(), 16)
+        if verbose:
+            print(f"         → 0x{val:08X}")
+        return val
 
     def read_ro(ro_offset: int) -> int:
         return uart_read(WRITE_REGS + ro_offset)
 
-    # Determine instruction count.
-    # Prefer per-channel runtime depth (set when sequencer starts);
-    # fall back to shared write register if runtime depth is 0.
-    depth_ch = read_ro(RO_DEPTH_BASE + channel) & 0x1FF
-    depth_wr = read_wreg(DEPTH_REG) & 0x1FF
-    depth_val = depth_ch if depth_ch else depth_wr
-    num_insns = depth_val + 1
+    num_insns = (read_ro(RO_DEPTH_BASE + channel) & 0x1FF) + 1
 
-    # Read instructions out of BRAM.
-    # ILD_STRB level selects the mux; posedge latches BRAM[ILDST_ADDR] into o_insn_rd.
-    insns = []
+    print(f"dc{channel}  insns={num_insns}")
     send_reg(ILD_STRB_REG, 0)          # ensure strobe starts low
     for addr in range(num_insns):
         send_reg(IST_ADDR_REG, addr)   # set BRAM read address
@@ -957,7 +1061,7 @@ def read_via_sim(channel: int, sock_path: str = '/tmp/tb_cmd.sock') -> None:
         w1 = read_ro(RO_ILD_BASE + 1)  # insn[63:32]
         w2 = read_ro(RO_ILD_BASE + 2)  # insn[31:0]
         v72 = ((w0 & 0xFF) << 64) | ((w1 & 0xFFFFFFFF) << 32) | (w2 & 0xFFFFFFFF)
-        insns.append(decode_insn(v72))
+        print(f"  [{addr:3d}]  {format_insn(decode_insn(v72))}")
         send_reg(ILD_STRB_REG, 0)      # clear for next posedge
 
     # Runtime status
@@ -969,13 +1073,11 @@ def read_via_sim(channel: int, sock_path: str = '/tmp/tb_cmd.sock') -> None:
     rp.close()
     sock.close()
 
-    # Display
-    print(f"dc{channel}  insns={num_insns}  iters_left={iters_left}  armed={int(armed)}  empty={int(empty)}")
-    for idx, insn in enumerate(insns):
-        print(f"  [{idx:3d}]  {format_insn(insn)}")
+    print(f"  iters_left={iters_left}  armed={int(armed)}  empty={int(empty)}")
 
 
-def read_launch_via_sim(sock_path: str = '/tmp/tb_cmd.sock') -> None:
+def read_launch_via_sim(sock_path: str = '/tmp/tb_cmd.sock',
+                        verbose: bool = False) -> None:
     """Read all launch controller registers from the simulator."""
     import socket as _socket
 
@@ -994,10 +1096,16 @@ def read_launch_via_sim(sock_path: str = '/tmp/tb_cmd.sock') -> None:
         fp.write(f"0x{b:02X}\n")
 
     def uart_read(rregs_addr: int) -> int:
+        if verbose:
+            name = _REG_NAMES.get(rregs_addr, f'reg{rregs_addr}')
+            print(f"  READ  {name}[{rregs_addr}]")
         send_byte(0x80 | rregs_addr)
         fp.write(f"run {5 * SIM_FRAME_NS}\n")
         fp.flush()
-        return int(rp.readline().strip(), 16)
+        val = int(rp.readline().strip(), 16)
+        if verbose:
+            print(f"         → 0x{val:08X}")
+        return val
 
     def read_wreg(waddr: int) -> int:
         return uart_read(waddr)
@@ -1064,20 +1172,29 @@ def main() -> None:
     ap.add_argument('-s', metavar='SOCK', nargs='?', const='/tmp/tb_cmd.sock',
                     help='Simulate via RTL socket (default /tmp/tb_cmd.sock)')
     ap.add_argument('-r', metavar='CHANNEL',
-                    help="Read state from simulator: dc<N> for a DC channel, 'launch' for the launch controller")
+                    help="Read state: dc<N> for a DC channel, 'launch' for the launch controller (uses -x port if given, else simulator socket)")
     ap.add_argument('-c', action='store_true',
                     help='Send clear strobe to launch controller (before loading, if -f given)')
+    ap.add_argument('-v', action='store_true',
+                    help='Verbose: print all UART register reads and writes')
     args = ap.parse_args()
 
     if args.r:
-        sock_path = args.s if args.s else '/tmp/tb_cmd.sock'
         if args.r == 'launch':
-            read_launch_via_sim(sock_path=sock_path)
+            if args.x and not args.s:
+                read_launch_via_serial(args.x, args.baud, verbose=args.v)
+            else:
+                read_launch_via_sim(sock_path=args.s if args.s else '/tmp/tb_cmd.sock',
+                                    verbose=args.v)
         else:
             m = re.match(r'dc(\d+)$', args.r)
             if not m:
                 sys.exit(f"-r: expected dc<N> or 'launch', got {args.r!r}")
-            read_via_sim(int(m[1]), sock_path=sock_path)
+            if args.x and not args.s:
+                read_via_serial(int(m[1]), args.x, args.baud, verbose=args.v)
+            else:
+                read_via_sim(int(m[1]), sock_path=args.s if args.s else '/tmp/tb_cmd.sock',
+                             verbose=args.v)
         return
 
     if not args.f and not args.c:
@@ -1111,10 +1228,10 @@ def main() -> None:
         print(f"mem files → {args.m}/")
 
     if args.x:
-        send_via_serial(programs, launch, args.x, args.baud, clear=args.c)
+        send_via_serial(programs, launch, args.x, args.baud, clear=args.c, verbose=args.v)
 
     if args.s:
-        send_via_sim(programs, launch, sock_path=args.s, clear=args.c)
+        send_via_sim(programs, launch, sock_path=args.s, clear=args.c, verbose=args.v)
 
 
 if __name__ == '__main__':
