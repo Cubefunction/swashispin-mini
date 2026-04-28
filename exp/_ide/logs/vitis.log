@@ -1,0 +1,6 @@
+22:33:13 INFO  : updated workspace path: 
+22:33:13 INFO  : bash, -c, source /home/shizeche/hardware/xilinx/Vitis/2024.2/tps/lnx64/lopper-1.1.0/env/bin/activate && python /home/shizeche/hardware/xilinx/Vitis/2024.2/data/embeddedsw/scripts/pyesw//repo.py -st  /home/shizeche/hardware/xilinx/Vitis/2024.2/data/embeddedsw && deactivate
+22:33:14 INFO  : Successfully created repository data at /tmp/rigel_lopper_shizeche15500826975922353608
+22:33:14 INFO  : bash, -c, source /home/shizeche/hardware/xilinx/Vitis/2024.2/tps/lnx64/lopper-1.1.0/env/bin/activate && python /home/shizeche/hardware/xilinx/Vitis/2024.2/data/embeddedsw/scripts/pyesw//get_template_data.py -d /tmp/rigel_lopper_shizeche12088404790752436838 -r /tmp/rigel_lopper_shizeche15500826975922353608/.repo.yaml && deactivate
+22:33:14 INFO  : Embedded Template List generated successfully
+22:33:44 INFO  : bash, -c, source /home/shizeche/hardware/xilinx/Vitis/2024.2/tps/lnx64/lopper-1.1.0/env/bin/activate && python /home/shizeche/hardware/xilinx/Vitis/2024.2/data/embeddedsw/scripts/pyesw//repo.py -st  /home/shizeche/hardware/xilinx/Vitis/2024.2/data/embeddedsw && deactivate
