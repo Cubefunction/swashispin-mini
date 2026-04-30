@@ -1,8 +1,4 @@
-.program dc20
-.dvsr 1
-.dlay 1
-.csup 1
-.ldac 1
+.program dc0
 .repeat 5
     lvl v=0.0000 t=1us (arm)
     lvl v=0.1227 t=1us
@@ -517,11 +513,7 @@
     lvl v=-0.2454 t=1us
     lvl v=-0.1227 t=1us
 
-.program dc21
-.dvsr 1
-.dlay 1
-.csup 1
-.ldac 1
+.program dc1
 .repeat 5
     lvl v=-0.0000 t=1us (arm)
     lvl v=-0.1227 t=1us
@@ -1036,11 +1028,7 @@
     lvl v=0.2454 t=1us
     lvl v=0.1227 t=1us
 
-.program dc22
-.dvsr 1
-.dlay 1
-.csup 1
-.ldac 1
+.program dc2
 .repeat 5
     lvl v=0.0610 t=1us (arm)
     lvl v=0.0634 t=1us
@@ -1555,11 +1543,7 @@
     lvl v=0.0634 t=1us
     lvl v=0.0610 t=1us
 
-.program dc23
-.dvsr 1
-.dlay 1
-.csup 1
-.ldac 1
+.program dc3
 .repeat 5
     lvl v=-0.0610 t=1us (arm)
     lvl v=-0.0634 t=1us 
@@ -2074,5 +2058,5 @@
     lvl v=-0.0634 t=1us 
     lvl v=-0.0610 t=1us 
 
-.launch dc20 dc21 dc22 dc23
+.launch dc0 dc1 dc2 dc3
 

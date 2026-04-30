@@ -807,14 +807,27 @@ def write_bin_file(programs: list[DcProgram], launch: Optional[Launch], path: st
             f.write(f"0x{launch.dc_chmask:08X}\n\n")
 
 
-def send_via_serial(programs: list[DcProgram], launch: Optional[Launch],
-                    port: str, baud: int = 921600, clear: bool = False,
-                    verbose: bool = False) -> None:
+def _warn_mac_tty(port: str) -> None:
+    if sys.platform == 'darwin' and port.startswith('/dev/tty.'):
+        alt = port.replace('/dev/tty.', '/dev/cu.', 1)
+        print(f"Warning: on macOS use /dev/cu.* not /dev/tty.* (tty blocks waiting for carrier detect)", file=sys.stderr)
+        print(f"  Try: {alt}", file=sys.stderr)
+
+
+def _open_serial(port: str, baud: int, timeout: float):
     try:
         import serial
     except ImportError:
         sys.exit("pyserial not installed — run: pip install pyserial")
+    _warn_mac_tty(port)
+    return serial.Serial(port, baud, timeout=timeout,
+                         bytesize=8, parity='N', stopbits=1,
+                         xonxoff=False, rtscts=False, dsrdtr=False)
 
+
+def send_via_serial(programs: list[DcProgram], launch: Optional[Launch],
+                    port: str, baud: int = 921600, clear: bool = False,
+                    verbose: bool = False) -> None:
     def _write(ser, reg: int, data: int) -> None:
         bs = reg_bytes(reg, data)
         if verbose:
@@ -822,21 +835,24 @@ def send_via_serial(programs: list[DcProgram], launch: Optional[Launch],
             print(f"  WRITE {name}[{reg}] = 0x{data:08X}  bytes: [{', '.join(f'0x{b:02X}' for b in bs)}]")
         ser.write(bs)
 
-    with serial.Serial(port, baud, timeout=1) as ser:
+    with _open_serial(port, baud, timeout=1) as ser:
         if clear:
             print("Clearing launch controller...")
             for reg, data in clear_launch_ops():
                 _write(ser, reg, data)
+            ser.flush()
         for prog in programs:
             print(f"Loading dc{prog.channel} ({len(prog.insns)} insns)...")
             for reg, data in load_ops(prog):
                 _write(ser, reg, data)
             for reg, data in start_ops(prog):
                 _write(ser, reg, data)
+            ser.flush()
         if launch:
             print(f"Launch mask: 0x{launch.dc_chmask:06X}")
             for reg, data in launch_ops(launch):
                 _write(ser, reg, data)
+            ser.flush()
 
 
 def send_via_sim(programs: list[DcProgram], launch: Optional[Launch],
@@ -849,6 +865,9 @@ def send_via_sim(programs: list[DcProgram], launch: Optional[Launch],
       '0xHH\\n'   — transmit one UART byte through pc_tsmt
       'run <ns>\\n' — advance simulation by <ns> nanoseconds
     """
+    if sys.platform == 'win32':
+        sys.exit("Simulator socket (-s) uses Unix domain sockets — not supported on Windows. Use -x with a real COM port instead.")
+
     import socket as _socket
 
     sock = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
@@ -902,12 +921,7 @@ def send_via_sim(programs: list[DcProgram], launch: Optional[Launch],
 def read_via_serial(channel: int, port: str, baud: int = 921600,
                     verbose: bool = False) -> None:
     """Read BRAM contents and runtime status for one DC channel via real UART."""
-    try:
-        import serial
-    except ImportError:
-        sys.exit("pyserial not installed — run: pip install pyserial")
-
-    with serial.Serial(port, baud, timeout=2) as ser:
+    with _open_serial(port, baud, timeout=2) as ser:
         def send_reg(reg: int, data: int) -> None:
             bs = reg_bytes(reg, data)
             if verbose:
@@ -954,12 +968,7 @@ def read_via_serial(channel: int, port: str, baud: int = 921600,
 def read_launch_via_serial(port: str, baud: int = 921600,
                            verbose: bool = False) -> None:
     """Read all launch controller registers via real UART."""
-    try:
-        import serial
-    except ImportError:
-        sys.exit("pyserial not installed — run: pip install pyserial")
-
-    with serial.Serial(port, baud, timeout=2) as ser:
+    with _open_serial(port, baud, timeout=2) as ser:
         def uart_read(reg_addr: int) -> int:
             if verbose:
                 name = _REG_NAMES.get(reg_addr, f'reg{reg_addr}')
@@ -1010,6 +1019,9 @@ def read_via_sim(channel: int, sock_path: str = '/tmp/tb_cmd.sock',
       2. Wait — simulator's forever block catches the 4 DUT TX bytes and streams back "0x%08x"
     Write registers (addresses 0..WRITE_REGS-1) can also be read back the same way.
     """
+    if sys.platform == 'win32':
+        sys.exit("Simulator socket requires Unix domain sockets — not supported on Windows.")
+
     import socket as _socket
 
     sock = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
@@ -1079,6 +1091,9 @@ def read_via_sim(channel: int, sock_path: str = '/tmp/tb_cmd.sock',
 def read_launch_via_sim(sock_path: str = '/tmp/tb_cmd.sock',
                         verbose: bool = False) -> None:
     """Read all launch controller registers from the simulator."""
+    if sys.platform == 'win32':
+        sys.exit("Simulator socket requires Unix domain sockets — not supported on Windows.")
+
     import socket as _socket
 
     sock = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
